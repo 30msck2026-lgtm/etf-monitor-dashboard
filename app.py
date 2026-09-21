@@ -12,7 +12,7 @@ st.markdown("""
 <style>
     .stApp { background-color: #060913 !important; color: #f1f5f9 !important; }
     header[data-testid="stHeader"] { background: transparent !important; }
-    .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; }
+    .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -24,11 +24,11 @@ with top_left:
         <div style="width:36px; height:36px; background:linear-gradient(135deg, #6366f1 0%, #3b82f6 100%); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px;">📈</div>
         <h1 style="font-size:26px; font-weight:800; color:#ffffff; margin:0;">ETF Overview</h1>
     </div>
-    <div style="display:flex; gap:10px; margin-bottom:15px;">
-        <span style="background:linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color:white; padding:6px 18px; border-radius:20px; font-size:13px; font-weight:600;">Sector ETF</span>
-        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:6px 18px; border-radius:20px; font-size:13px; font-weight:600;">Industry ETF</span>
-        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:6px 18px; border-radius:20px; font-size:13px; font-weight:600;">Asset Class</span>
-        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:6px 18px; border-radius:20px; font-size:13px; font-weight:600;">Market Overview</span>
+    <div style="display:flex; gap:10px; margin-bottom:12px;">
+        <span style="background:linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color:white; padding:5px 16px; border-radius:20px; font-size:12px; font-weight:600;">Sector ETF</span>
+        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:5px 16px; border-radius:20px; font-size:12px; font-weight:600;">Industry ETF</span>
+        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:5px 16px; border-radius:20px; font-size:12px; font-weight:600;">Asset Class</span>
+        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:5px 16px; border-radius:20px; font-size:12px; font-weight:600;">Market Overview</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -44,18 +44,18 @@ with st.expander("➕ / ➖ 點此管理監控 ETF 清單 (點擊展開或關閉
     selected_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
 
 SECTOR_MAP = {
-    "XLK": ("資訊科技 (Technology)", ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD"]),
-    "XLC": ("通訊服務 (Communication)", ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA"]),
-    "XLY": ("非必需消費 (Consumer Discretionary)", ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "BKNG"]),
-    "XLI": ("工業製造 (Industrials)", ["GE", "CAT", "UNP", "HON", "RTX", "BA", "DE", "LMT"]),
-    "XLF": ("金融服務 (Financials)", ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS"]),
-    "XLV": ("醫療保健 (Healthcare)", ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "PFE"]),
+    "XLK": ("資訊科技 (Tech)", ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD"]),
+    "XLC": ("通訊服務 (Comm)", ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA"]),
+    "XLY": ("非必需消費 (Discr)", ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "BKNG"]),
+    "XLI": ("工業製造 (Ind)", ["GE", "CAT", "UNP", "HON", "RTX", "BA", "DE", "LMT"]),
+    "XLF": ("金融服務 (Fin)", ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS"]),
+    "XLV": ("醫療保健 (Health)", ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "PFE"]),
     "XLB": ("原物料 (Materials)", ["LIN", "APD", "SHW", "FCX", "ECL", "NEM", "DOW"]),
-    "XLU": ("公用事業 (Utilities)", ["NEE", "SO", "DUK", "CEG", "SRE", "AEP"]),
-    "XLP": ("必需消費 (Consumer Staples)", ["PG", "COST", "WMT", "KO", "PEP", "PM"]),
-    "XLRE": ("房地產 (Real Estate)", ["PLD", "AMT", "EQIX", "WELL", "PSA", "O"]),
+    "XLU": ("公用事業 (Utils)", ["NEE", "SO", "DUK", "CEG", "SRE", "AEP"]),
+    "XLP": ("必需消費 (Staples)", ["PG", "COST", "WMT", "KO", "PEP", "PM"]),
+    "XLRE": ("房地產 (Real Est)", ["PLD", "AMT", "EQIX", "WELL", "PSA", "O"]),
     "XLE": ("能源板塊 (Energy)", ["XOM", "CVX", "COP", "EOG", "SLB", "MPC"]),
-    "SMH": ("半導體 (Semiconductors)", ["NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "MU"])
+    "SMH": ("半導體 (Semis)", ["NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "MU"])
 }
 
 def calc_breadth_at_idx(c_df, constituents, idx):
@@ -102,7 +102,7 @@ def fetch_dashboard_data(tickers):
         
         sector_name, constituents = SECTOR_MAP.get(ticker, (ticker, []))
         b_now = (0, 0, 0)
-        chg_1w = chg_1m = chg_2m = chg_3m = "+0.0%"
+        chg_1w = chg_1m = chg_2m = chg_3m = 0.0
         ew_ret = "- / - / -"
         
         if constituents:
@@ -113,10 +113,10 @@ def fetch_dashboard_data(tickers):
             b_2m = calc_breadth_at_idx(c_df, constituents, -42)
             b_3m = calc_breadth_at_idx(c_df, constituents, -63)
             
-            chg_1w = f"{(b_now[1] - b_1w[1]):+.1f}%"
-            chg_1m = f"{(b_now[1] - b_1m[1]):+.1f}%"
-            chg_2m = f"{(b_now[1] - b_2m[1]):+.1f}%"
-            chg_3m = f"{(b_now[1] - b_3m[1]):+.1f}%"
+            chg_1w = b_now[1] - b_1w[1]
+            chg_1m = b_now[1] - b_1m[1]
+            chg_2m = b_now[1] - b_2m[1]
+            chg_3m = b_now[1] - b_3m[1]
 
             ew1 = np.mean([(c_df[c].iloc[-1]/c_df[c].iloc[-21]-1)*100 for c in constituents if c in c_df])
             ew2 = np.mean([(c_df[c].iloc[-1]/c_df[c].iloc[-42]-1)*100 for c in constituents if c in c_df])
@@ -129,48 +129,49 @@ def fetch_dashboard_data(tickers):
             "price": f"${cur_p:.2f}",
             "trend": trend_status,
             "rs": f"{rs_score:+.1f}",
-            "ema10_20_30": f"{(cur_p/e10-1)*100:+.1f}%, {(cur_p/e20-1)*100:+.1f}%, {(cur_p/e30-1)*100:+.1f}%",
-            "ema50_200": f"{(cur_p/e50-1)*100:+.1f}%, {(cur_p/e200-1)*100:+.1f}%",
+            "ema_all": f"{(cur_p/e10-1)*100:+.1f}%, {(cur_p/e20-1)*100:+.1f}%, {(cur_p/e30-1)*100:+.1f}%, {(cur_p/e50-1)*100:+.1f}%, {(cur_p/e200-1)*100:+.1f}%",
             "ma30w": f"{(cur_p/ma150-1)*100:+.1f}%",
             "price_ret": f"{p_1m:+.1f}% / {p_2m:+.1f}% / {p_3m:+.1f}%",
             "ew_ret": ew_ret,
             "breadth": f"{b_now[0]:.0f}%, {b_now[1]:.0f}%, {b_now[2]:.0f}%",
-            "breadth_chg": f"1W: {chg_1w} | 1M: {chg_1m} | 2M: {chg_2m} | 3M: {chg_3m}"
+            "chg_1w": f"{chg_1w:+.1f}%",
+            "chg_1m": f"{chg_1m:+.1f}%",
+            "chg_2m": f"{chg_2m:+.1f}%",
+            "chg_3m": f"{chg_3m:+.1f}%"
         })
     return results
 
 with st.spinner("⚡ 正在計算市場寬度與多週期均線指標..."):
     items = fetch_dashboard_data(selected_etfs)
 
-# 透過 components 完整封裝 HTML/CSS，杜絕 Markdown 標籤外洩
-table1_rows = ""
+# 生成單一表格數據行（結合雙向凍結）
+table_rows = ""
 for it in items:
     trend_color = "#10b981" if "UP" in it["trend"] else ("#ef4444" if "DOWN" in it["trend"] else "#94a3b8")
     trend_bg = "rgba(16, 185, 129, 0.15)" if "UP" in it["trend"] else ("rgba(239, 68, 68, 0.15)" if "DOWN" in it["trend"] else "rgba(148, 163, 184, 0.15)")
     rs_color = "#10b981" if not it["rs"].startswith("-") else "#f43f5e"
-    
-    table1_rows += f"""
-    <tr style="border-bottom: 1px solid #121a2d;">
-        <td style="padding:12px;"><span style="background-color:#2563eb; color:#fff; padding:3px 8px; border-radius:6px; font-weight:800; font-size:13px;">{it['ticker']}</span></td>
-        <td style="padding:12px; color:#94a3b8;">{it['sector']}</td>
-        <td style="padding:12px; font-weight:700; color:#ffffff;">{it['price']}</td>
-        <td style="padding:12px;"><span style="background-color:{trend_bg}; color:{trend_color}; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">{it['trend']}</span></td>
-        <td style="padding:12px; font-weight:600; color:{rs_color};">{it['rs']}</td>
-        <td style="padding:12px; color:#cbd5e1;">{it['ema10_20_30']}</td>
-        <td style="padding:12px; color:#cbd5e1;">{it['ema50_200']}</td>
-        <td style="padding:12px; color:#cbd5e1;">{it['ma30w']}</td>
-    </tr>
-    """
 
-table2_rows = ""
-for it in items:
-    table2_rows += f"""
-    <tr style="border-bottom: 1px solid #121a2d;">
-        <td style="padding:12px;"><span style="background-color:#2563eb; color:#fff; padding:3px 8px; border-radius:6px; font-weight:800; font-size:13px;">{it['ticker']}</span></td>
-        <td style="padding:12px; color:#cbd5e1;">{it['price_ret']}</td>
-        <td style="padding:12px; color:#a5b4fc;">{it['ew_ret']}</td>
-        <td style="padding:12px; color:#38bdf8; font-weight:700;">{it['breadth']}</td>
-        <td style="padding:12px; color:#94a3b8; font-size:12px;">{it['breadth_chg']}</td>
+    w1_color = "#10b981" if not it["chg_1w"].startswith("-") else "#f43f5e"
+    m1_color = "#10b981" if not it["chg_1m"].startswith("-") else "#f43f5e"
+    m2_color = "#10b981" if not it["chg_2m"].startswith("-") else "#f43f5e"
+    m3_color = "#10b981" if not it["chg_3m"].startswith("-") else "#f43f5e"
+
+    table_rows += f"""
+    <tr>
+        <td class="sticky-col-1"><span class="ticker-pill">{it['ticker']}</span></td>
+        <td class="sticky-col-2">{it['sector']}</td>
+        <td style="font-weight:700; color:#fff;">{it['price']}</td>
+        <td><span style="background-color:{trend_bg}; color:{trend_color}; padding:3px 8px; border-radius:5px; font-weight:700; font-size:12px;">{it['trend']}</span></td>
+        <td style="font-weight:600; color:{rs_color};">{it['rs']}</td>
+        <td style="color:#cbd5e1; white-space:nowrap;">{it['ema_all']}</td>
+        <td style="color:#cbd5e1;">{it['ma30w']}</td>
+        <td style="color:#cbd5e1; white-space:nowrap;">{it['price_ret']}</td>
+        <td style="color:#a5b4fc; white-space:nowrap;">{it['ew_ret']}</td>
+        <td style="color:#38bdf8; font-weight:700; white-space:nowrap;">{it['breadth']}</td>
+        <td style="color:{w1_color}; font-weight:600;">{it['chg_1w']}</td>
+        <td style="color:{m1_color}; font-weight:600;">{it['chg_1m']}</td>
+        <td style="color:{m2_color}; font-weight:600;">{it['chg_2m']}</td>
+        <td style="color:{m3_color}; font-weight:600;">{it['chg_3m']}</td>
     </tr>
     """
 
@@ -180,93 +181,133 @@ full_html = f"""
 <head>
 <meta charset="utf-8">
 <style>
+    * {{ box-sizing: border-box; }}
     body {{
         margin: 0;
         background-color: #060913;
         color: #f1f5f9;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }}
-    .dash-card {{
-        background-color: #0e1526;
+    
+    /* 雙向滾動容器：固定高度產生垂直捲軸，超出寬度產生水平捲軸 */
+    .table-container {{
+        width: 100%;
+        max-height: 750px;
+        overflow: auto;
         border: 1px solid #1a233a;
-        border-radius: 14px;
-        padding: 20px;
-        margin-bottom: 25px;
+        border-radius: 12px;
+        background-color: #0e1526;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     }}
-    .card-title {{
-        font-size: 15px;
-        font-weight: 700;
-        color: #ffffff;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-        margin-bottom: 15px;
-    }}
+
     table {{
-        width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        border-spacing: 0;
+        width: max-content;
+        min-width: 100%;
         text-align: left;
     }}
+
+    /* 1. 上下滑動時表頭永遠凍結在最頂 */
     th {{
-        color: #64748b;
+        position: sticky;
+        top: 0;
+        background-color: #162038;
+        color: #94a3b8;
         font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.8px;
+        letter-spacing: 0.5px;
         text-transform: uppercase;
-        padding: 10px 12px;
-        border-bottom: 1px solid #1a253c;
+        padding: 12px 14px;
+        border-bottom: 2px solid #223154;
+        white-space: nowrap;
+        z-index: 10;
     }}
-    tr:hover {{ background-color: #141e34; }}
+
+    td {{
+        padding: 12px 14px;
+        font-size: 13px;
+        color: #cbd5e1;
+        border-bottom: 1px solid #141c30;
+        white-space: nowrap;
+        background-color: #0e1526;
+    }}
+
+    tr:hover td {{
+        background-color: #141e34 !important;
+    }}
+
+    /* 2. 左右滾動時，左側 Ticker 與 Sector 永遠凍結固定在左邊 */
+    .sticky-col-1 {{
+        position: sticky;
+        left: 0;
+        z-index: 5;
+        background-color: #0e1526;
+        min-width: 90px;
+    }}
+    .sticky-col-2 {{
+        position: sticky;
+        left: 90px;
+        z-index: 5;
+        background-color: #0e1526;
+        min-width: 140px;
+        border-right: 2px solid #1e2942;
+    }}
+
+    /* 頂角交叉處層級最高，避免滾動覆蓋 */
+    th.sticky-col-1 {{ z-index: 20; background-color: #162038; }}
+    th.sticky-col-2 {{ z-index: 20; background-color: #162038; border-right: 2px solid #223154; }}
+
+    .ticker-pill {{
+        background-color: #2563eb;
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 800;
+        font-size: 13px;
+    }}
+
+    /* 分組次表頭美化 */
+    .sub-head {{
+        background-color: #111a2e;
+        color: #38bdf8;
+        font-size: 10px;
+        text-align: center;
+        border-left: 1px solid #1e2942;
+    }}
 </style>
 </head>
 <body>
 
-<div class="dash-card">
-    <div class="card-title">📊 ETF SECTOR / INDUSTRY MONITOR</div>
-    <div style="overflow-x:auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Ticker</th>
-                    <th>Sector / Industry</th>
-                    <th>Price</th>
-                    <th>Trend</th>
-                    <th>RS Score</th>
-                    <th>% vs EMA (10, 20, 30)</th>
-                    <th>% vs EMA (50, 200)</th>
-                    <th>% vs 30W MA</th>
-                </tr>
-            </thead>
-            <tbody>
-                {table1_rows}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<div class="dash-card">
-    <div class="card-title">🔬 ETF INTERNAL BREADTH & PARTICIPATION MONITOR</div>
-    <div style="overflow-x:auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Ticker</th>
-                    <th>Price Chg % (1M/2M/3M)</th>
-                    <th>EW Comp. Chg % (1M/2M/3M)</th>
-                    <th>% Above EMA (20/50/200)</th>
-                    <th>Breadth Change (% > 50 EMA vs Past)</th>
-                </tr>
-            </thead>
-            <tbody>
-                {table2_rows}
-            </tbody>
-        </table>
-    </div>
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th class="sticky-col-1">TICKER</th>
+                <th class="sticky-col-2">SECTOR / INDUSTRY</th>
+                <th>PRICE</th>
+                <th>TREND</th>
+                <th>RS (SPY)</th>
+                <th>% VS EMA (10, 20, 30, 50, 200)</th>
+                <th>% VS 30W MA</th>
+                <th>PRICE CHG (1M/2M/3M)</th>
+                <th>EW COMP (1M/2M/3M)</th>
+                <th>% ABOVE EMA (20/50/200)</th>
+                <th class="sub-head">1W BREADTH CHG</th>
+                <th class="sub-head">1M BREADTH CHG</th>
+                <th class="sub-head">2M BREADTH CHG</th>
+                <th class="sub-head">3M BREADTH CHG</th>
+            </tr>
+        </thead>
+        <tbody>
+            {table_rows}
+        </tbody>
+    </table>
 </div>
 
 </body>
 </html>
 """
 
-# 直接以原生物件渲染完整 HTML 頁面
-components.html(full_html, height=1200, scrolling=True)
+# 以獨立全功能容器渲染
+components.html(full_html, height=800, scrolling=False)
