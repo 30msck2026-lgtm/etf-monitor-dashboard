@@ -7,11 +7,56 @@ import numpy as np
 # 頁面基礎設置
 st.set_page_config(page_title="ETF Overview", layout="wide", initial_sidebar_state="collapsed")
 
+# 注入高質感樣式並隱藏右上角預設的 Share / 三個點選單
 st.markdown("""
 <style>
     .stApp { background-color: #060913 !important; color: #f1f5f9 !important; }
-    header[data-testid="stHeader"] { background: transparent !important; }
-    .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
+    
+    /* 隱藏原生頁眉與右上角干擾按鈕 */
+    header[data-testid="stHeader"] { display: none !important; }
+    #MainMenu { visibility: hidden !important; }
+    footer { visibility: hidden !important; }
+    .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; }
+
+    /* 美化 Refresh 按鈕 */
+    div.stButton > button {
+        background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        font-size: 13px !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+        transition: all 0.2s ease;
+    }
+    div.stButton > button:hover {
+        background: linear-gradient(135deg, #4338ca 0%, #1d4ed8 100%) !important;
+        box-shadow: 0 4px 16px rgba(37, 99, 235, 0.5) !important;
+    }
+
+    /* 單選按鈕組美化為分類膠囊列 (Pills) */
+    div[data-testid="stRadio"] > div {
+        flex-direction: row !important;
+        gap: 10px !important;
+    }
+    div[data-testid="stRadio"] label {
+        background-color: #12192c !important;
+        border: 1px solid #1e2942 !important;
+        padding: 6px 18px !important;
+        border-radius: 20px !important;
+        cursor: pointer !important;
+        color: #94a3b8 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stRadio"] label[data-checked="true"], 
+    div[data-testid="stRadio"] label:has(input:checked) {
+        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid transparent !important;
+        box-shadow: 0 2px 10px rgba(79, 70, 229, 0.4) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -19,15 +64,9 @@ st.markdown("""
 top_left, top_right = st.columns([5, 1])
 with top_left:
     st.markdown("""
-    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
         <div style="width:36px; height:36px; background:linear-gradient(135deg, #6366f1 0%, #3b82f6 100%); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px;">📈</div>
         <h1 style="font-size:26px; font-weight:800; color:#ffffff; margin:0;">ETF Overview</h1>
-    </div>
-    <div style="display:flex; gap:10px; margin-bottom:12px;">
-        <span style="background:linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color:white; padding:5px 16px; border-radius:20px; font-size:12px; font-weight:600;">Sector ETF</span>
-        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:5px 16px; border-radius:20px; font-size:12px; font-weight:600;">Industry ETF</span>
-        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:5px 16px; border-radius:20px; font-size:12px; font-weight:600;">Asset Class</span>
-        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:5px 16px; border-radius:20px; font-size:12px; font-weight:600;">Market Overview</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -36,13 +75,28 @@ with top_right:
         st.cache_data.clear()
         st.rerun()
 
-# ----------------- 【自由加減 ETF 清單】 -----------------
-with st.expander("➕ / ➖ 點此管理監控 ETF 清單 (點擊展開或關閉)", expanded=False):
-    default_tickers = "XLK, XLC, XLY, XLI, XLF, XLV, XLB, XLU, XLP, XLRE, XLE, SMH, IGV, SOXX, SCHD, VYM"
-    user_input = st.text_input("輸入你想監控的 ETF 代號（逗號隔開）", value=default_tickers)
-    selected_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
+# ----------------- 【可點擊的真實分類導航】 -----------------
+CATEGORY_ETFS = {
+    "Sector ETF": ["XLK", "XLC", "XLY", "XLI", "XLF", "XLV", "XLB", "XLU", "XLP", "XLRE", "XLE"],
+    "Industry ETF": ["SMH", "SOXX", "IGV", "XBI", "ITA", "XHB", "KBE"],
+    "Asset Class": ["SPY", "QQQ", "IWM", "TLT", "GLD", "SCHD", "VYM"],
+    "Market Overview": ["XLK", "XLC", "XLY", "XLI", "XLF", "XLV", "XLB", "XLU", "XLP", "XLRE", "XLE", "SMH", "SOXX", "IGV", "SCHD", "VYM"]
+}
 
-# 完整涵蓋常見板塊與行業成分股字典
+selected_cat = st.radio(
+    "分類視圖",
+    options=["Sector ETF", "Industry ETF", "Asset Class", "Market Overview"],
+    index=0,
+    label_visibility="collapsed"
+)
+
+# ----------------- 【自由加減 ETF 清單】 -----------------
+with st.expander("➕ / ➖ 點此自訂該分類下的 ETF 標的 (點擊展開或關閉)", expanded=False):
+    default_pool = ", ".join(CATEGORY_ETFS[selected_cat])
+    user_input = st.text_input("ETF 監控代碼（用逗號隔開）", value=default_pool)
+    active_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
+
+# 全面擴充持股字典
 ETF_HOLDINGS_DB = {
     "XLK": ("資訊科技 (Tech)", ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD", "QCOM"]),
     "XLC": ("通訊服務 (Comm)", ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA", "TTWO"]),
@@ -61,10 +115,14 @@ ETF_HOLDINGS_DB = {
     "XBI": ("生物科技 (Biotech)", ["VRTX", "REGN", "BIIB", "ALNY", "MRNA", "ILMN", "INCY"]),
     "ITA": ("國防航空 (Aerospace)", ["RTX", "LMT", "BA", "GE", "GD", "NOC", "TDG"]),
     "XHB": ("房屋建築 (Homebuilders)", ["DHI", "LEN", "NVR", "PHM", "TOL", "HD", "LOW"]),
+    "KBE": ("銀行板塊 (Banks)", ["JPM", "BAC", "WFC", "C", "GS", "MS", "USB", "PNC"]),
     "SCHD": ("美股高息 (US Dividend)", ["AVGO", "CSCO", "HD", "TXN", "PFE", "AMGN", "PEP", "CVX", "ABBV", "KO"]),
     "VYM": ("高股息率 (High Div)", ["JPM", "XOM", "JNJ", "PG", "HD", "CVX", "MRK", "ABBV", "BAC", "WFC"]),
+    "SPY": ("標普500 (S&P 500)", ["MSFT", "AAPL", "NVDA", "AMZN", "META", "GOOGL", "BRK-B", "LLY", "AVGO", "JPM"]),
     "QQQ": ("納指100 (Nasdaq 100)", ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST"]),
-    "IWM": ("羅素2000 (Small Cap)", ["FTAI", "VRT", "SAIA", "ENSG", "FN", "SFM", "MSTR", "MEDP"])
+    "IWM": ("羅素2000 (Small Cap)", ["FTAI", "VRT", "SAIA", "ENSG", "FN", "SFM", "MSTR", "MEDP"]),
+    "TLT": ("20年+美債 (Treasury)", ["ZB=F", "ZN=F"]),
+    "GLD": ("黃金信託 (Gold Trust)", ["GC=F"])
 }
 
 def calc_breadth_at_idx(c_df, constituents, idx):
@@ -73,13 +131,10 @@ def calc_breadth_at_idx(c_df, constituents, idx):
     for c in constituents:
         if c in c_df.columns:
             s = c_df[c].dropna()
-            # 確保有足夠歷史天數計算 EMA
             if len(s) > abs(idx) + 120:
                 valid_count += 1
                 sub_s = s.iloc[:len(s)+idx] if idx < 0 else s
                 last_p = sub_s.iloc[-1]
-                
-                # 計算該股票的 EMA
                 ema20 = sub_s.ewm(span=20, adjust=False).mean().iloc[-1]
                 ema50 = sub_s.ewm(span=50, adjust=False).mean().iloc[-1]
                 span_200 = 200 if len(sub_s) >= 200 else len(sub_s)
@@ -95,8 +150,6 @@ def calc_breadth_at_idx(c_df, constituents, idx):
 @st.cache_data(ttl=1800)
 def fetch_dashboard_data(tickers):
     results = []
-    
-    # 取得 SPY 3 個月報酬作相對強度基準
     spy_ret_3m = 0
     try:
         spy_raw = yf.download("SPY", period="1y", interval="1d", progress=False)
@@ -118,7 +171,6 @@ def fetch_dashboard_data(tickers):
             if isinstance(series, pd.DataFrame):
                 series = series.iloc[:, 0]
             series = series.dropna()
-            
             if len(series) < 120:
                 continue
             
@@ -138,7 +190,7 @@ def fetch_dashboard_data(tickers):
             rs_score = ((p_3m / 100) - spy_ret_3m) * 100
             trend_status = "UP ▲" if (cur_p > e50 and e20 > e50) else ("DOWN ▼" if (cur_p < e50 and e20 < e50) else "RNG ◼")
             
-            sector_display, constituents = ETF_HOLDINGS_DB.get(ticker, (f"自訂標的 ({ticker})", []))
+            sector_display, constituents = ETF_HOLDINGS_DB.get(ticker, (f"標的 ({ticker})", []))
             
             b_now_str = "N/A"
             chg_1w_str = chg_1m_str = chg_2m_str = chg_3m_str = "-"
@@ -148,17 +200,11 @@ def fetch_dashboard_data(tickers):
                 c_raw = yf.download(constituents, period="2y", interval="1d", progress=False)
                 if not c_raw.empty and 'Close' in c_raw:
                     c_close = c_raw['Close']
-                    
-                    # 確保 c_close 是平整的 DataFrame
-                    if isinstance(c_close, pd.Series):
-                        c_df = pd.DataFrame({constituents[0]: c_close})
-                    else:
-                        c_df = c_close.copy()
+                    c_df = pd.DataFrame({constituents[0]: c_close}) if isinstance(c_close, pd.Series) else c_close.copy()
                     
                     b_now = calc_breadth_at_idx(c_df, constituents, 0)
                     if b_now is not None:
                         b_now_str = f"{b_now[0]:.0f}%, {b_now[1]:.0f}%, {b_now[2]:.0f}%"
-                        
                         b_1w = calc_breadth_at_idx(c_df, constituents, -5)
                         b_1m = calc_breadth_at_idx(c_df, constituents, -21)
                         b_2m = calc_breadth_at_idx(c_df, constituents, -42)
@@ -169,7 +215,6 @@ def fetch_dashboard_data(tickers):
                         if b_2m: chg_2m_str = f"{(b_now[1] - b_2m[1]):+.1f}%"
                         if b_3m: chg_3m_str = f"{(b_now[1] - b_3m[1]):+.1f}%"
 
-                    # 計算等權回報 (EW COMP)
                     ew1, ew2, ew3 = [], [], []
                     for c in constituents:
                         if c in c_df.columns:
@@ -179,10 +224,7 @@ def fetch_dashboard_data(tickers):
                             if len(sc) >= 63: ew3.append((sc.iloc[-1] / sc.iloc[-63] - 1) * 100)
                     
                     if ew1:
-                        ret1 = np.mean(ew1) if ew1 else 0
-                        ret2 = np.mean(ew2) if ew2 else 0
-                        ret3 = np.mean(ew3) if ew3 else 0
-                        ew_ret = f"{ret1:+.1f}% / {ret2:+.1f}% / {ret3:+.1f}%"
+                        ew_ret = f"{np.mean(ew1):+.1f}% / {np.mean(ew2):+.1f}% / {np.mean(ew3):+.1f}%"
 
             results.append({
                 "ticker": ticker,
@@ -205,8 +247,8 @@ def fetch_dashboard_data(tickers):
             
     return results
 
-with st.spinner("⚡ 正在計算市場寬度與多週期均線指標..."):
-    items = fetch_dashboard_data(selected_etfs)
+with st.spinner(f"⚡ 正在加載 {selected_cat} 數據並計算指標..."):
+    items = fetch_dashboard_data(active_etfs)
 
 table_rows = ""
 for it in items:
