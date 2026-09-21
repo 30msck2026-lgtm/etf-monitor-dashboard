@@ -4,21 +4,16 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# 頁面基礎設置
 st.set_page_config(page_title="ETF Overview", layout="wide", initial_sidebar_state="collapsed")
 
-# 注入高質感樣式並隱藏右上角預設的 Share / 三個點選單
 st.markdown("""
 <style>
     .stApp { background-color: #060913 !important; color: #f1f5f9 !important; }
-    
-    /* 隱藏原生頁眉與右上角干擾按鈕 */
     header[data-testid="stHeader"] { display: none !important; }
     #MainMenu { visibility: hidden !important; }
     footer { visibility: hidden !important; }
     .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; }
 
-    /* 美化 Refresh 按鈕 */
     div.stButton > button {
         background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%) !important;
         color: #ffffff !important;
@@ -28,18 +23,9 @@ st.markdown("""
         border-radius: 8px !important;
         padding: 8px 16px !important;
         box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
-        transition: all 0.2s ease;
-    }
-    div.stButton > button:hover {
-        background: linear-gradient(135deg, #4338ca 0%, #1d4ed8 100%) !important;
-        box-shadow: 0 4px 16px rgba(37, 99, 235, 0.5) !important;
     }
 
-    /* 單選按鈕組美化為分類膠囊列 (Pills) */
-    div[data-testid="stRadio"] > div {
-        flex-direction: row !important;
-        gap: 10px !important;
-    }
+    div[data-testid="stRadio"] > div { flex-direction: row !important; gap: 10px !important; }
     div[data-testid="stRadio"] label {
         background-color: #12192c !important;
         border: 1px solid #1e2942 !important;
@@ -60,13 +46,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 頂部抬頭與 Refresh 按鈕
 top_left, top_right = st.columns([5, 1])
 with top_left:
     st.markdown("""
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
         <div style="width:36px; height:36px; background:linear-gradient(135deg, #6366f1 0%, #3b82f6 100%); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px;">📈</div>
-        <h1 style="font-size:26px; font-weight:800; color:#ffffff; margin:0;">ETF Overview</h1>
+        <h1 style="font-size:26px; font-weight:800; color:#ffffff; margin:0;">ETF Overview (Full Breadth)</h1>
     </div>
     """, unsafe_allow_html=True)
 
@@ -75,11 +60,10 @@ with top_right:
         st.cache_data.clear()
         st.rerun()
 
-# ----------------- 【可點擊的真實分類導航】 -----------------
 CATEGORY_ETFS = {
     "Sector ETF": ["XLK", "XLC", "XLY", "XLI", "XLF", "XLV", "XLB", "XLU", "XLP", "XLRE", "XLE"],
-    "Industry ETF": ["SMH", "SOXX", "IGV", "XBI", "ITA", "XHB", "KBE"],
-    "Asset Class": ["SPY", "QQQ", "IWM", "TLT", "GLD", "SCHD", "VYM"],
+    "Industry ETF": ["SMH", "SOXX", "IGV", "XBI", "ITA", "XHB", "MAGS"],
+    "Asset Class": ["SPY", "QQQ", "IWM", "SCHD", "VYM"],
     "Market Overview": ["XLK", "XLC", "XLY", "XLI", "XLF", "XLV", "XLB", "XLU", "XLP", "XLRE", "XLE", "SMH", "SOXX", "IGV", "SCHD", "VYM"]
 }
 
@@ -90,72 +74,125 @@ selected_cat = st.radio(
     label_visibility="collapsed"
 )
 
-# ----------------- 【自由加減 ETF 清單】 -----------------
 with st.expander("➕ / ➖ 點此自訂該分類下的 ETF 標的 (點擊展開或關閉)", expanded=False):
     default_pool = ", ".join(CATEGORY_ETFS[selected_cat])
-    user_input = st.text_input("ETF 監控代碼（用逗號隔開）", value=default_pool)
+    user_input = st.text_input("ETF 監控代碼（逗號隔開）", value=default_pool)
     active_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
 
-# 全面擴充持股字典
-ETF_HOLDINGS_DB = {
-    "XLK": ("資訊科技 (Tech)", ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD", "QCOM"]),
-    "XLC": ("通訊服務 (Comm)", ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA", "TTWO"]),
-    "XLY": ("非必需消費 (Discr)", ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "BKNG", "SBUX", "TJX"]),
-    "XLI": ("工業製造 (Ind)", ["GE", "CAT", "UNP", "HON", "RTX", "BA", "DE", "LMT", "ETN", "UPS"]),
-    "XLF": ("金融板塊 (Fin)", ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "AXP"]),
-    "XLV": ("醫療保健 (Health)", ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "PFE", "AMGN"]),
-    "XLB": ("基礎原物料 (Materials)", ["LIN", "APD", "SHW", "FCX", "ECL", "NEM", "DOW", "CTVA"]),
-    "XLU": ("公用事業 (Utils)", ["NEE", "SO", "DUK", "CEG", "SRE", "AEP", "D", "PEG"]),
-    "XLP": ("必需消費 (Staples)", ["PG", "COST", "WMT", "KO", "PEP", "PM", "MDLZ", "MO", "CL"]),
-    "XLRE": ("房地產 (Real Est)", ["PLD", "AMT", "EQIX", "WELL", "PSA", "O", "CCI", "SPG"]),
-    "XLE": ("能源板塊 (Energy)", ["XOM", "CVX", "COP", "EOG", "SLB", "MPC", "PSX", "VLO"]),
-    "SMH": ("半導體 (VanEck Semis)", ["NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "MU", "LRCX", "AMAT"]),
-    "SOXX": ("費城半導體 (iShares Semis)", ["NVDA", "AVGO", "AMD", "QCOM", "TXN", "INTC", "ADI", "MU", "LRCX", "KLAC"]),
-    "IGV": ("軟體科技 (Software)", ["MSFT", "CRM", "ORCL", "ADBE", "NOW", "INTU", "PLTR", "PANW", "SNOW"]),
-    "XBI": ("生物科技 (Biotech)", ["VRTX", "REGN", "BIIB", "ALNY", "MRNA", "ILMN", "INCY"]),
-    "ITA": ("國防航空 (Aerospace)", ["RTX", "LMT", "BA", "GE", "GD", "NOC", "TDG"]),
-    "XHB": ("房屋建築 (Homebuilders)", ["DHI", "LEN", "NVR", "PHM", "TOL", "HD", "LOW"]),
-    "KBE": ("銀行板塊 (Banks)", ["JPM", "BAC", "WFC", "C", "GS", "MS", "USB", "PNC"]),
-    "SCHD": ("美股高息 (US Dividend)", ["AVGO", "CSCO", "HD", "TXN", "PFE", "AMGN", "PEP", "CVX", "ABBV", "KO"]),
-    "VYM": ("高股息率 (High Div)", ["JPM", "XOM", "JNJ", "PG", "HD", "CVX", "MRK", "ABBV", "BAC", "WFC"]),
-    "SPY": ("標普500 (S&P 500)", ["MSFT", "AAPL", "NVDA", "AMZN", "META", "GOOGL", "BRK-B", "LLY", "AVGO", "JPM"]),
-    "QQQ": ("納指100 (Nasdaq 100)", ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST"]),
-    "IWM": ("羅素2000 (Small Cap)", ["FTAI", "VRT", "SAIA", "ENSG", "FN", "SFM", "MSTR", "MEDP"]),
-    "TLT": ("20年+美債 (Treasury)", ["ZB=F", "ZN=F"]),
-    "GLD": ("黃金信託 (Gold Trust)", ["GC=F"])
+# 全量持股名單庫（涵蓋板塊與行業實際完整組成成分股）
+FULL_ETF_UNIVERSE = {
+    "XLK": ("科技板塊 (Tech 全量)", [
+        "AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD", "QCOM", "TXN", "INTU", 
+        "AMAT", "NOW", "IBM", "ADI", "LRCX", "MU", "PANW", "KLAC", "SNPS", "CDNS", "CRWD", "FTNT", 
+        "MCHP", "APH", "TEL", "NXPI", "MSI", "ROP", "ANSS", "ON", "MPWR", "KEYS", "IT", "FSLR", "GLW", 
+        "CDW", "HPQ", "TDY", "WDC", "HPE", "NTAP", "STX", "PTC", "ZBRA", "SWKS", "TRMB", "GEN", "AKAM"
+    ]),
+    "XLE": ("能源板塊 (Energy 全量)", [
+        "XOM", "CVX", "COP", "EOG", "SLB", "MPC", "PSX", "VLO", "WMB", "OXY", "KMI", "HAL", "DVN", 
+        "BKR", "FANG", "HES", "TRGP", "EQT", "CTRA", "MRO", "APA", "OVV"
+    ]),
+    "XLF": ("金融板塊 (Fin 全量)", [
+        "BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "SPGI", "AXP", "PGR", "CB", "BLK", 
+        "C", "MMC", "SCHW", "ICE", "MCO", "AON", "AJG", "TRV", "PNC", "AFL", "USB", "BK", "ALL", 
+        "MET", "COF", "PRU", "AIG", "HIG", "ACGL", "FITB", "WTW", "MTB", "TROW", "BRO", "DFS", "RJF"
+    ]),
+    "XLC": ("通訊服務 (Comm 全量)", [
+        "META", "GOOGL", "GOOG", "NFLX", "TMUS", "CMCSA", "DIS", "T", "VZ", "CHTR", "EA", "TTWO", 
+        "WBD", "OMC", "IPG", "FOXA", "FOX", "NWSA", "NWS", "MTCH", "LYV"
+    ]),
+    "XLY": ("非必需消費 (Discr 全量)", [
+        "AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "BKNG", "SBUX", "TJX", "ORLY", "AZO", "MAR", 
+        "LULU", "HLT", "CMG", "ROST", "F", "GM", "DHI", "LEN", "YUM", "EBAY", "KMX", "APTV", "GPC"
+    ]),
+    "XLI": ("工業製造 (Ind 全量)", [
+        "GE", "CAT", "UNP", "HON", "RTX", "BA", "DE", "LMT", "ETN", "UPS", "ADP", "WM", "GD", 
+        "ITW", "NOC", "CSX", "NSC", "PCAR", "EMR", "PH", "FDX", "CARR", "CTAS", "TDG", "TT", "JCI"
+    ]),
+    "XLV": ("醫療保健 (Health 全量)", [
+        "LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "PFE", "AMGN", "DHR", "ISRG", "BMY", 
+        "SYK", "VRTX", "MDT", "GILD", "ELV", "CI", "REGN", "BSX", "ZTS", "BDX", "BIIB", "HCA"
+    ]),
+    "XLB": ("基礎原物料 (Materials 全量)", [
+        "LIN", "APD", "SHW", "FCX", "ECL", "NEM", "DOW", "CTVA", "PPG", "DD", "VMC", "MLM", 
+        "ALB", "CF", "FMC", "MOS", "IFF", "EMN", "CE"
+    ]),
+    "XLU": ("公用事業 (Utils 全量)", [
+        "NEE", "SO", "DUK", "CEG", "SRE", "AEP", "D", "PEG", "ED", "PCG", "EXC", "XEL", "EIX", 
+        "WEC", "DTE", "PPL", "ES", "AEE", "CMS", "CNP"
+    ]),
+    "XLP": ("必需消費 (Staples 全量)", [
+        "PG", "COST", "WMT", "KO", "PEP", "PM", "MDLZ", "MO", "CL", "KMB", "STZ", "GIS", "SYY", 
+        "ADM", "KDP", "HSY", "KR", "K", "TSN", "CLX", "CAG"
+    ]),
+    "XLRE": ("房地產 (Real Est 全量)", [
+        "PLD", "AMT", "EQIX", "WELL", "PSA", "O", "CCI", "SPG", "DLR", "CSGP", "VICI", "SBAC", 
+        "AVB", "EQR", "WY", "EXR", "INVH", "MAA", "ARE", "UDR"
+    ]),
+    "SOXX": ("費城半導體 30 檔全量", [
+        "NVDA", "AVGO", "AMD", "QCOM", "TXN", "INTC", "ADI", "MU", "LRCX", "KLAC", "AMAT", 
+        "ASML", "TSM", "MRVL", "NXPI", "MCHP", "MPWR", "ON", "TER", "ENTG", "SWKS", "QRVO"
+    ]),
+    "SMH": ("VanEck 半導體 25 檔全量", [
+        "NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "MU", "LRCX", "AMAT", "ADI", 
+        "KLAC", "INTC", "MRVL", "NXPI", "MCHP", "CDNS", "SNPS", "ARM", "MPWR"
+    ]),
+    "MAGS": ("七巨頭 (Magnificent 7 全量)", [
+        "NVDA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "TSLA"
+    ]),
+    "IGV": ("擴展軟體科技 (全量代表)", [
+        "MSFT", "CRM", "ORCL", "ADBE", "NOW", "INTU", "PLTR", "PANW", "SNOW", "WDAY", "CRWD", 
+        "FTNT", "DDOG", "TEAM", "MDB", "ZS", "HUBS", "NET", "APP", "DOCU"
+    ]),
+    "XBI": ("標普生物科技 (全量代表)", [
+        "VRTX", "REGN", "BIIB", "ALNY", "MRNA", "ILMN", "INCY", "CRSP", "EXAS", "IONS", "BGNE", 
+        "SGEN", "ROIV", "NVAX", "RARE", "SRPT", "HALO", "BMRN"
+    ]),
+    "UFO": ("Procure 太空產業 (全量代表)", [
+        "RKLB", "LMT", "LHX", "NOC", "RTX", "IRDM", "SESG", "VSAT", "PL", "GSAT", "ASTS", "BA"
+    ]),
+    "SCHD": ("道瓊美股高息 (全量權重)", [
+        "AVGO", "CSCO", "HD", "TXN", "PFE", "AMGN", "PEP", "CVX", "ABBV", "KO", "MRK", "BMY", 
+        "UPS", "LMT", "BLK", "ADP", "EOG", "GILD", "VZ"
+    ]),
+    "VYM": ("先鋒高股息 (全量權重)", [
+        "JPM", "XOM", "JNJ", "PG", "HD", "CVX", "MRK", "ABBV", "BAC", "WFC", "CSCO", "PFE", 
+        "KO", "PEP", "T", "VZ", "MCD", "BMY"
+    ])
 }
 
-def calc_breadth_at_idx(c_df, constituents, idx):
-    cnt_20, cnt_50, cnt_200 = 0, 0, 0
-    valid_count = 0
-    for c in constituents:
-        if c in c_df.columns:
-            s = c_df[c].dropna()
-            if len(s) > abs(idx) + 120:
-                valid_count += 1
-                sub_s = s.iloc[:len(s)+idx] if idx < 0 else s
-                last_p = sub_s.iloc[-1]
-                ema20 = sub_s.ewm(span=20, adjust=False).mean().iloc[-1]
-                ema50 = sub_s.ewm(span=50, adjust=False).mean().iloc[-1]
-                span_200 = 200 if len(sub_s) >= 200 else len(sub_s)
-                ema200 = sub_s.ewm(span=span_200, adjust=False).mean().iloc[-1]
-                
-                if last_p > ema20: cnt_20 += 1
-                if last_p > ema50: cnt_50 += 1
-                if last_p > ema200: cnt_200 += 1
-    if valid_count == 0:
+def calc_breadth_vectorized(c_df, constituents, idx):
+    valid_cols = [c for c in constituents if c in c_df.columns and len(c_df[c].dropna()) > abs(idx) + 120]
+    if not valid_cols:
         return None
-    return (cnt_20/valid_count)*100, (cnt_50/valid_count)*100, (cnt_200/valid_count)*100
+    
+    cnt_20, cnt_50, cnt_200 = 0, 0, 0
+    for c in valid_cols:
+        s = c_df[c].dropna()
+        sub_s = s.iloc[:len(s)+idx] if idx < 0 else s
+        last_p = sub_s.iloc[-1]
+        
+        e20 = sub_s.ewm(span=20, adjust=False).mean().iloc[-1]
+        e50 = sub_s.ewm(span=50, adjust=False).mean().iloc[-1]
+        span_200 = 200 if len(sub_s) >= 200 else len(sub_s)
+        e200 = sub_s.ewm(span=span_200, adjust=False).mean().iloc[-1]
+        
+        if last_p > e20: cnt_20 += 1
+        if last_p > e50: cnt_50 += 1
+        if last_p > e200: cnt_200 += 1
+        
+    n = len(valid_cols)
+    return (cnt_20/n)*100, (cnt_50/n)*100, (cnt_200/n)*100, n
 
 @st.cache_data(ttl=1800)
 def fetch_dashboard_data(tickers):
     results = []
+    
+    # 基準 SPY 報酬
     spy_ret_3m = 0
     try:
         spy_raw = yf.download("SPY", period="1y", interval="1d", progress=False)
         spy_close = spy_raw['Close']
-        if isinstance(spy_close, pd.DataFrame):
-            spy_close = spy_close.iloc[:, 0]
+        if isinstance(spy_close, pd.DataFrame): spy_close = spy_close.iloc[:, 0]
         if len(spy_close) >= 63:
             spy_ret_3m = (spy_close.iloc[-1] / spy_close.iloc[-63] - 1)
     except Exception:
@@ -164,15 +201,12 @@ def fetch_dashboard_data(tickers):
     for ticker in tickers:
         try:
             raw = yf.download(ticker, period="1y", interval="1d", progress=False)
-            if raw.empty or 'Close' not in raw:
-                continue
+            if raw.empty or 'Close' not in raw: continue
             
             series = raw['Close']
-            if isinstance(series, pd.DataFrame):
-                series = series.iloc[:, 0]
+            if isinstance(series, pd.DataFrame): series = series.iloc[:, 0]
             series = series.dropna()
-            if len(series) < 120:
-                continue
+            if len(series) < 120: continue
             
             cur_p = series.iloc[-1]
             e10 = series.ewm(span=10, adjust=False).mean().iloc[-1]
@@ -190,31 +224,45 @@ def fetch_dashboard_data(tickers):
             rs_score = ((p_3m / 100) - spy_ret_3m) * 100
             trend_status = "UP ▲" if (cur_p > e50 and e20 > e50) else ("DOWN ▼" if (cur_p < e50 and e20 < e50) else "RNG ◼")
             
-            sector_display, constituents = ETF_HOLDINGS_DB.get(ticker, (f"標的 ({ticker})", []))
+            # 取得全量成分股
+            sector_name, constituents = FULL_ETF_UNIVERSE.get(ticker, (f"自訂標的 ({ticker})", []))
             
+            # 如果未知，備用抓取其所有可獲得持股
+            if not constituents:
+                try:
+                    t_obj = yf.Ticker(ticker)
+                    top_h = t_obj.funds_data.top_holdings
+                    if top_h is not None and not top_h.empty:
+                        constituents = [str(x).replace(".", "-").strip().upper() for x in top_h.index.tolist() if isinstance(x, str)]
+                except Exception:
+                    pass
+
             b_now_str = "N/A"
             chg_1w_str = chg_1m_str = chg_2m_str = chg_3m_str = "-"
             ew_ret = "- / - / -"
             
             if constituents:
+                # 一次性批量下載該 ETF 全量成分股歷史日線
                 c_raw = yf.download(constituents, period="2y", interval="1d", progress=False)
                 if not c_raw.empty and 'Close' in c_raw:
                     c_close = c_raw['Close']
                     c_df = pd.DataFrame({constituents[0]: c_close}) if isinstance(c_close, pd.Series) else c_close.copy()
                     
-                    b_now = calc_breadth_at_idx(c_df, constituents, 0)
-                    if b_now is not None:
-                        b_now_str = f"{b_now[0]:.0f}%, {b_now[1]:.0f}%, {b_now[2]:.0f}%"
-                        b_1w = calc_breadth_at_idx(c_df, constituents, -5)
-                        b_1m = calc_breadth_at_idx(c_df, constituents, -21)
-                        b_2m = calc_breadth_at_idx(c_df, constituents, -42)
-                        b_3m = calc_breadth_at_idx(c_df, constituents, -63)
+                    b_res = calc_breadth_vectorized(c_df, constituents, 0)
+                    if b_res is not None:
+                        b_now_str = f"{b_res[0]:.0f}%, {b_res[1]:.0f}%, {b_res[2]:.0f}% ({b_res[3]}檔)"
                         
-                        if b_1w: chg_1w_str = f"{(b_now[1] - b_1w[1]):+.1f}%"
-                        if b_1m: chg_1m_str = f"{(b_now[1] - b_1m[1]):+.1f}%"
-                        if b_2m: chg_2m_str = f"{(b_now[1] - b_2m[1]):+.1f}%"
-                        if b_3m: chg_3m_str = f"{(b_now[1] - b_3m[1]):+.1f}%"
+                        b_1w = calc_breadth_vectorized(c_df, constituents, -5)
+                        b_1m = calc_breadth_vectorized(c_df, constituents, -21)
+                        b_2m = calc_breadth_vectorized(c_df, constituents, -42)
+                        b_3m = calc_breadth_vectorized(c_df, constituents, -63)
+                        
+                        if b_1w: chg_1w_str = f"{(b_res[1] - b_1w[1]):+.1f}%"
+                        if b_1m: chg_1m_str = f"{(b_res[1] - b_1m[1]):+.1f}%"
+                        if b_2m: chg_2m_str = f"{(b_res[1] - b_2m[1]):+.1f}%"
+                        if b_3m: chg_3m_str = f"{(b_res[1] - b_3m[1]):+.1f}%"
 
+                    # 計算全體成分股算術等權回報
                     ew1, ew2, ew3 = [], [], []
                     for c in constituents:
                         if c in c_df.columns:
@@ -228,7 +276,7 @@ def fetch_dashboard_data(tickers):
 
             results.append({
                 "ticker": ticker,
-                "sector": sector_display,
+                "sector": sector_name,
                 "price": f"${cur_p:.2f}",
                 "trend": trend_status,
                 "rs": f"{rs_score:+.1f}",
@@ -247,7 +295,7 @@ def fetch_dashboard_data(tickers):
             
     return results
 
-with st.spinner(f"⚡ 正在加載 {selected_cat} 數據並計算指標..."):
+with st.spinner(f"⚡ 正在加載 {selected_cat} 全量成分股並計算市場寬度..."):
     items = fetch_dashboard_data(active_etfs)
 
 table_rows = ""
@@ -335,9 +383,7 @@ full_html = f"""
         background-color: #0e1526;
     }}
 
-    tr:hover td {{
-        background-color: #141e34 !important;
-    }}
+    tr:hover td {{ background-color: #141e34 !important; }}
 
     .sticky-col-1 {{
         position: sticky;
@@ -351,7 +397,7 @@ full_html = f"""
         left: 90px;
         z-index: 5;
         background-color: #0e1526;
-        min-width: 150px;
+        min-width: 170px;
         border-right: 2px solid #1e2942;
     }}
 
