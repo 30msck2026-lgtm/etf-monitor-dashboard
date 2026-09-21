@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -6,167 +7,28 @@ import numpy as np
 # 頁面基礎設置
 st.set_page_config(page_title="ETF Overview", layout="wide", initial_sidebar_state="collapsed")
 
-# 注入完全對齊設計圖的深藍科技感 CSS
+# 隱藏 Streamlit 原生多餘空白
 st.markdown("""
 <style>
-    /* 全域背景設定 */
-    .stApp {
-        background-color: #060913 !important;
-        color: #f1f5f9 !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    
-    /* 隱藏 Streamlit 原生多餘空白與頁眉 */
+    .stApp { background-color: #060913 !important; color: #f1f5f9 !important; }
     header[data-testid="stHeader"] { background: transparent !important; }
     .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; }
-
-    /* 頂部標題區塊 */
-    .brand-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 15px;
-    }
-    .brand-icon {
-        width: 38px;
-        height: 38px;
-        background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
-    }
-    .brand-title {
-        font-size: 26px;
-        font-weight: 800;
-        letter-spacing: -0.5px;
-        color: #ffffff;
-        margin: 0;
-    }
-
-    /* 頂部分類膠囊列 (對應截圖中的紫藍按鈕) */
-    .cat-pills {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-    .cat-pill {
-        background-color: #12192c;
-        color: #94a3b8;
-        border: 1px solid #1e2942;
-        padding: 6px 18px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-    }
-    .cat-pill.active {
-        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
-        color: white;
-        border: none;
-        box-shadow: 0 2px 10px rgba(79, 70, 229, 0.4);
-    }
-
-    /* 區塊外框卡片 */
-    .dash-card {
-        background-color: #0e1526;
-        border: 1px solid #1a233a;
-        border-radius: 14px;
-        padding: 20px;
-        margin-bottom: 25px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    }
-    .card-title {
-        font-size: 16px;
-        font-weight: 700;
-        color: #ffffff;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-        margin-bottom: 15px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    /* 金融終端數據表 */
-    .fin-table {
-        width: 100%;
-        border-collapse: collapse;
-        text-align: left;
-    }
-    .fin-table th {
-        color: #64748b;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        padding: 10px 12px;
-        border-bottom: 1px solid #1a253c;
-    }
-    .fin-table td {
-        padding: 12px;
-        font-size: 13px;
-        color: #cbd5e1;
-        border-bottom: 1px solid #121a2d;
-    }
-    .fin-table tr:hover {
-        background-color: #141e34;
-    }
-
-    /* 樣式標籤 */
-    .ticker-symbol {
-        font-weight: 800;
-        color: #ffffff;
-        font-size: 14px;
-    }
-    .badge-trend-up {
-        background-color: rgba(16, 185, 129, 0.15);
-        color: #10b981;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-weight: 700;
-        font-size: 12px;
-    }
-    .badge-trend-down {
-        background-color: rgba(239, 68, 68, 0.15);
-        color: #ef4444;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-weight: 700;
-        font-size: 12px;
-    }
-    .badge-trend-mid {
-        background-color: rgba(148, 163, 184, 0.15);
-        color: #94a3b8;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 12px;
-    }
-    .val-up { color: #10b981; font-weight: 600; }
-    .val-down { color: #f43f5e; font-weight: 600; }
-    .breadth-highlight { color: #38bdf8; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
-# 頂部抬頭與按鈕列
+# 頂部抬頭與 Refresh 按鈕
 top_left, top_right = st.columns([5, 1])
 with top_left:
     st.markdown("""
-    <div class="brand-header">
-        <div class="brand-icon">📈</div>
-        <div>
-            <h1 class="brand-title">ETF Overview</h1>
-        </div>
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+        <div style="width:36px; height:36px; background:linear-gradient(135deg, #6366f1 0%, #3b82f6 100%); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px;">📈</div>
+        <h1 style="font-size:26px; font-weight:800; color:#ffffff; margin:0;">ETF Overview</h1>
     </div>
-    <div class="cat-pills">
-        <div class="cat-pill active">Sector ETF</div>
-        <div class="cat-pill">Industry ETF</div>
-        <div class="cat-pill">Asset Class</div>
-        <div class="cat-pill">Market Overview</div>
+    <div style="display:flex; gap:10px; margin-bottom:15px;">
+        <span style="background:linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color:white; padding:6px 18px; border-radius:20px; font-size:13px; font-weight:600;">Sector ETF</span>
+        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:6px 18px; border-radius:20px; font-size:13px; font-weight:600;">Industry ETF</span>
+        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:6px 18px; border-radius:20px; font-size:13px; font-weight:600;">Asset Class</span>
+        <span style="background-color:#12192c; color:#94a3b8; border:1px solid #1e2942; padding:6px 18px; border-radius:20px; font-size:13px; font-weight:600;">Market Overview</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -181,7 +43,6 @@ with st.expander("➕ / ➖ 點此管理監控 ETF 清單 (點擊展開或關閉
     user_input = st.text_input("輸入你想監控的 ETF 代號（逗號隔開）", value=default_tickers)
     selected_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
 
-# 代表性成分股字典 (計算內部市場寬度)
 SECTOR_MAP = {
     "XLK": ("資訊科技 (Technology)", ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD"]),
     "XLC": ("通訊服務 (Communication)", ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA"]),
@@ -281,12 +142,89 @@ def fetch_dashboard_data(tickers):
 with st.spinner("⚡ 正在計算市場寬度與多週期均線指標..."):
     items = fetch_dashboard_data(selected_etfs)
 
-# ==================== CARD 1: ETF SECTOR/INDUSTRY MONITOR ====================
-card1_html = """
+# 透過 components 完整封裝 HTML/CSS，杜絕 Markdown 標籤外洩
+table1_rows = ""
+for it in items:
+    trend_color = "#10b981" if "UP" in it["trend"] else ("#ef4444" if "DOWN" in it["trend"] else "#94a3b8")
+    trend_bg = "rgba(16, 185, 129, 0.15)" if "UP" in it["trend"] else ("rgba(239, 68, 68, 0.15)" if "DOWN" in it["trend"] else "rgba(148, 163, 184, 0.15)")
+    rs_color = "#10b981" if not it["rs"].startswith("-") else "#f43f5e"
+    
+    table1_rows += f"""
+    <tr style="border-bottom: 1px solid #121a2d;">
+        <td style="padding:12px;"><span style="background-color:#2563eb; color:#fff; padding:3px 8px; border-radius:6px; font-weight:800; font-size:13px;">{it['ticker']}</span></td>
+        <td style="padding:12px; color:#94a3b8;">{it['sector']}</td>
+        <td style="padding:12px; font-weight:700; color:#ffffff;">{it['price']}</td>
+        <td style="padding:12px;"><span style="background-color:{trend_bg}; color:{trend_color}; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">{it['trend']}</span></td>
+        <td style="padding:12px; font-weight:600; color:{rs_color};">{it['rs']}</td>
+        <td style="padding:12px; color:#cbd5e1;">{it['ema10_20_30']}</td>
+        <td style="padding:12px; color:#cbd5e1;">{it['ema50_200']}</td>
+        <td style="padding:12px; color:#cbd5e1;">{it['ma30w']}</td>
+    </tr>
+    """
+
+table2_rows = ""
+for it in items:
+    table2_rows += f"""
+    <tr style="border-bottom: 1px solid #121a2d;">
+        <td style="padding:12px;"><span style="background-color:#2563eb; color:#fff; padding:3px 8px; border-radius:6px; font-weight:800; font-size:13px;">{it['ticker']}</span></td>
+        <td style="padding:12px; color:#cbd5e1;">{it['price_ret']}</td>
+        <td style="padding:12px; color:#a5b4fc;">{it['ew_ret']}</td>
+        <td style="padding:12px; color:#38bdf8; font-weight:700;">{it['breadth']}</td>
+        <td style="padding:12px; color:#94a3b8; font-size:12px;">{it['breadth_chg']}</td>
+    </tr>
+    """
+
+full_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    body {{
+        margin: 0;
+        background-color: #060913;
+        color: #f1f5f9;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }}
+    .dash-card {{
+        background-color: #0e1526;
+        border: 1px solid #1a233a;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }}
+    .card-title {{
+        font-size: 15px;
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 15px;
+    }}
+    table {{
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }}
+    th {{
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        padding: 10px 12px;
+        border-bottom: 1px solid #1a253c;
+    }}
+    tr:hover {{ background-color: #141e34; }}
+</style>
+</head>
+<body>
+
 <div class="dash-card">
     <div class="card-title">📊 ETF SECTOR / INDUSTRY MONITOR</div>
     <div style="overflow-x:auto;">
-        <table class="fin-table">
+        <table>
             <thead>
                 <tr>
                     <th>Ticker</th>
@@ -300,31 +238,16 @@ card1_html = """
                 </tr>
             </thead>
             <tbody>
-"""
-for it in items:
-    trend_badge = "badge-trend-up" if "UP" in it["trend"] else ("badge-trend-down" if "DOWN" in it["trend"] else "badge-trend-mid")
-    rs_color = "val-up" if not it["rs"].startswith("-") else "val-down"
-    card1_html += f"""
-        <tr>
-            <td><span class="ticker-symbol">{it['ticker']}</span></td>
-            <td style="color:#94a3b8;">{it['sector']}</td>
-            <td style="font-weight:700; color:#fff;">{it['price']}</td>
-            <td><span class="{trend_badge}">{it['trend']}</span></td>
-            <td class="{rs_color}">{it['rs']}</td>
-            <td>{it['ema10_20_30']}</td>
-            <td>{it['ema50_200']}</td>
-            <td>{it['ma30w']}</td>
-        </tr>
-    """
-card1_html += "</tbody></table></div></div>"
-st.markdown(card1_html, unsafe_allow_html=True)
+                {table1_rows}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-# ==================== CARD 2: ETF INTERNAL BREADTH MONITOR ====================
-card2_html = """
 <div class="dash-card">
     <div class="card-title">🔬 ETF INTERNAL BREADTH & PARTICIPATION MONITOR</div>
     <div style="overflow-x:auto;">
-        <table class="fin-table">
+        <table>
             <thead>
                 <tr>
                     <th>Ticker</th>
@@ -335,16 +258,15 @@ card2_html = """
                 </tr>
             </thead>
             <tbody>
+                {table2_rows}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
 """
-for it in items:
-    card2_html += f"""
-        <tr>
-            <td><span class="ticker-symbol">{it['ticker']}</span></td>
-            <td>{it['price_ret']}</td>
-            <td style="color:#a5b4fc;">{it['ew_ret']}</td>
-            <td><span class="breadth-highlight">{it['breadth']}</span></td>
-            <td style="color:#94a3b8; font-size:12px;">{it['breadth_chg']}</td>
-        </tr>
-    """
-card2_html += "</tbody></table></div></div>"
-st.markdown(card2_html, unsafe_allow_html=True)
+
+# 直接以原生物件渲染完整 HTML 頁面
+components.html(full_html, height=1200, scrolling=True)
