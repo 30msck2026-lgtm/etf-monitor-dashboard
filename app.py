@@ -3,11 +3,12 @@ import streamlit.components.v1 as components
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import requests
+from bs4 import BeautifulSoup
 
 # 頁面基礎設置
 st.set_page_config(page_title="ETF Overview", layout="wide", initial_sidebar_state="collapsed")
 
-# 隱藏 Streamlit 原生多餘空白
 st.markdown("""
 <style>
     .stApp { background-color: #060913 !important; color: #f1f5f9 !important; }
@@ -37,40 +38,76 @@ with top_right:
         st.cache_data.clear()
         st.rerun()
 
-# ----------------- 【直接在介面加減 ETF】 -----------------
+# ----------------- 【自由加減 ETF 清單】 -----------------
 with st.expander("➕ / ➖ 點此管理監控 ETF 清單 (點擊展開或關閉)", expanded=False):
-    default_tickers = "XLK, XLC, XLY, XLI, XLF, XLV, XLB, XLU, XLP, XLRE, XLE, SMH"
-    user_input = st.text_input("輸入你想監控的 ETF 代號（逗號隔開）", value=default_tickers)
+    default_tickers = "XLK, XLC, XLY, XLI, XLF, XLV, XLB, XLU, XLP, XLRE, XLE, SMH, IGV, SOXX, SCHD, VYM"
+    user_input = st.text_input("輸入你想監控的 ETF 代號（逗號隔開，支援任意美股 ETF）", value=default_tickers)
     selected_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
 
-SECTOR_MAP = {
-    "XLK": ("資訊科技 (Tech)", ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD"]),
-    "XLC": ("通訊服務 (Comm)", ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA"]),
-    "XLY": ("非必需消費 (Discr)", ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "BKNG"]),
-    "XLI": ("工業製造 (Ind)", ["GE", "CAT", "UNP", "HON", "RTX", "BA", "DE", "LMT"]),
-    "XLF": ("金融服務 (Fin)", ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS"]),
-    "XLV": ("醫療保健 (Health)", ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "PFE"]),
-    "XLB": ("原物料 (Materials)", ["LIN", "APD", "SHW", "FCX", "ECL", "NEM", "DOW"]),
-    "XLU": ("公用事業 (Utils)", ["NEE", "SO", "DUK", "CEG", "SRE", "AEP"]),
-    "XLP": ("必需消費 (Staples)", ["PG", "COST", "WMT", "KO", "PEP", "PM"]),
-    "XLRE": ("房地產 (Real Est)", ["PLD", "AMT", "EQIX", "WELL", "PSA", "O"]),
-    "XLE": ("能源板塊 (Energy)", ["XOM", "CVX", "COP", "EOG", "SLB", "MPC"]),
-    "SMH": ("半導體 (Semis)", ["NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "MU"])
+# 預設基礎板塊名稱字典（作為友好顯示）
+SECTOR_NAMES = {
+    "XLK": "資訊科技 (Tech)", "XLC": "通訊服務 (Comm)", "XLY": "非必需消費 (Discr)",
+    "XLI": "工業製造 (Ind)", "XLF": "金融服務 (Fin)", "XLV": "醫療保健 (Health)",
+    "XLB": "原物料 (Materials)", "XLU": "公用事業 (Utils)", "XLP": "必需消費 (Staples)",
+    "XLRE": "房地產 (Real Est)", "XLE": "能源板塊 (Energy)", "SMH": "半導體 (Semis)",
+    "SOXX": "半導體 (Semis)", "IGV": "軟體科技 (Software)", "SCHD": "美股高息 (Dividend)",
+    "VYM": "高股息率 (High Div)", "QQQ": "納指科技 (Nasdaq)", "IWM": "小型股 (Russell)"
 }
+
+# 自動聯網抓取任意 ETF 的前 10 大成分股
+@st.cache_data(ttl=86400) # 成分股名單每日快取一次
+def get_etf_holdings_auto(ticker):
+    try:
+        # 方法 A: 嘗試使用 yfinance 原生持股介面
+        etf_obj = yf.Ticker(ticker)
+        try:
+            holdings_df = etf_obj.funds_data.top_holdings
+            if holdings_df is not None and not holdings_df.empty:
+                syms = [s.replace(".", "-") for s in holdings_df.index.tolist() if isinstance(s, str)]
+                if len(syms) >= 5:
+                    return syms[:10]
+        except Exception:
+            pass
+
+        # 方法 B: 備用爬蟲抓取 Yahoo Finance Holdings 頁面
+        url = f"https://finance.yahoo.com/quote/{ticker}/holdings"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        res = requests.get(url, headers=headers, timeout=6)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            links = soup.find_all('a', href=True)
+            tickers_found = []
+            for a in links:
+                href = a['href']
+                if "/quote/" in href and not href.endswith(f"/quote/{ticker}"):
+                    sym = href.split("/quote/")[1].split("?")[0].replace(".", "-").strip().upper()
+                    if sym and sym.isalpha() and len(sym) <= 5 and sym != ticker:
+                        if sym not in tickers_found:
+                            tickers_found.append(sym)
+                if len(tickers_found) >= 10:
+                    break
+            if len(tickers_found) >= 5:
+                return tickers_found[:10]
+    except Exception:
+        pass
+    return []
 
 def calc_breadth_at_idx(c_df, constituents, idx):
     cnt_20, cnt_50, cnt_200 = 0, 0, 0
-    total = len(constituents)
+    valid_count = 0
     for c in constituents:
         if c in c_df:
             s = c_df[c].dropna()
-            if len(s) > abs(idx) + 200:
+            if len(s) > abs(idx) + 150:
+                valid_count += 1
                 sub_s = s.iloc[:len(s)+idx] if idx < 0 else s
                 last_p = sub_s.iloc[-1]
                 if last_p > sub_s.ewm(span=20, adjust=False).mean().iloc[-1]: cnt_20 += 1
                 if last_p > sub_s.ewm(span=50, adjust=False).mean().iloc[-1]: cnt_50 += 1
                 if last_p > sub_s.ewm(span=200, adjust=False).mean().iloc[-1]: cnt_200 += 1
-    return (cnt_20/total)*100, (cnt_50/total)*100, (cnt_200/total)*100
+    if valid_count == 0:
+        return None
+    return (cnt_20/valid_count)*100, (cnt_50/valid_count)*100, (cnt_200/valid_count)*100
 
 @st.cache_data(ttl=1800)
 def fetch_dashboard_data(tickers):
@@ -100,32 +137,42 @@ def fetch_dashboard_data(tickers):
         rs_score = ((p_3m / 100) - spy_ret_3m) * 100
         trend_status = "UP ▲" if (cur_p > e50 and e20 > e50) else ("DOWN ▼" if (cur_p < e50 and e20 < e50) else "RNG ◼")
         
-        sector_name, constituents = SECTOR_MAP.get(ticker, (ticker, []))
-        b_now = (0, 0, 0)
-        chg_1w = chg_1m = chg_2m = chg_3m = 0.0
+        # 標籤顯示
+        sector_display = SECTOR_NAMES.get(ticker, f"ETF ({ticker})")
+        
+        # 自動聯網尋找成分股
+        constituents = get_etf_holdings_auto(ticker)
+        
+        b_now_str = "N/A"
+        chg_1w_str = chg_1m_str = chg_2m_str = chg_3m_str = "-"
         ew_ret = "- / - / -"
         
         if constituents:
             c_df = yf.download(constituents, period="2y", interval="1d", progress=False)['Close']
             b_now = calc_breadth_at_idx(c_df, constituents, 0)
-            b_1w = calc_breadth_at_idx(c_df, constituents, -5)
-            b_1m = calc_breadth_at_idx(c_df, constituents, -21)
-            b_2m = calc_breadth_at_idx(c_df, constituents, -42)
-            b_3m = calc_breadth_at_idx(c_df, constituents, -63)
             
-            chg_1w = b_now[1] - b_1w[1]
-            chg_1m = b_now[1] - b_1m[1]
-            chg_2m = b_now[1] - b_2m[1]
-            chg_3m = b_now[1] - b_3m[1]
+            if b_now is not None:
+                b_now_str = f"{b_now[0]:.0f}%, {b_now[1]:.0f}%, {b_now[2]:.0f}%"
+                b_1w = calc_breadth_at_idx(c_df, constituents, -5)
+                b_1m = calc_breadth_at_idx(c_df, constituents, -21)
+                b_2m = calc_breadth_at_idx(c_df, constituents, -42)
+                b_3m = calc_breadth_at_idx(c_df, constituents, -63)
+                
+                if b_1w: chg_1w_str = f"{(b_now[1] - b_1w[1]):+.1f}%"
+                if b_1m: chg_1m_str = f"{(b_now[1] - b_1m[1]):+.1f}%"
+                if b_2m: chg_2m_str = f"{(b_now[1] - b_2m[1]):+.1f}%"
+                if b_3m: chg_3m_str = f"{(b_now[1] - b_3m[1]):+.1f}%"
 
-            ew1 = np.mean([(c_df[c].iloc[-1]/c_df[c].iloc[-21]-1)*100 for c in constituents if c in c_df])
-            ew2 = np.mean([(c_df[c].iloc[-1]/c_df[c].iloc[-42]-1)*100 for c in constituents if c in c_df])
-            ew3 = np.mean([(c_df[c].iloc[-1]/c_df[c].iloc[-63]-1)*100 for c in constituents if c in c_df])
-            ew_ret = f"{ew1:+.1f}% / {ew2:+.1f}% / {ew3:+.1f}%"
+            ew1 = [((c_df[c].iloc[-1]/c_df[c].iloc[-21]-1)*100) for c in constituents if c in c_df and len(c_df[c].dropna())>=21]
+            ew2 = [((c_df[c].iloc[-1]/c_df[c].iloc[-42]-1)*100) for c in constituents if c in c_df and len(c_df[c].dropna())>=42]
+            ew3 = [((c_df[c].iloc[-1]/c_df[c].iloc[-63]-1)*100) for c in constituents if c in c_df and len(c_df[c].dropna())>=63]
+            
+            if ew1:
+                ew_ret = f"{np.mean(ew1):+.1f}% / {np.mean(ew2):+.1f}% / {np.mean(ew3):+.1f}%"
 
         results.append({
             "ticker": ticker,
-            "sector": sector_name,
+            "sector": sector_display,
             "price": f"${cur_p:.2f}",
             "trend": trend_status,
             "rs": f"{rs_score:+.1f}",
@@ -133,28 +180,26 @@ def fetch_dashboard_data(tickers):
             "ma30w": f"{(cur_p/ma150-1)*100:+.1f}%",
             "price_ret": f"{p_1m:+.1f}% / {p_2m:+.1f}% / {p_3m:+.1f}%",
             "ew_ret": ew_ret,
-            "breadth": f"{b_now[0]:.0f}%, {b_now[1]:.0f}%, {b_now[2]:.0f}%",
-            "chg_1w": f"{chg_1w:+.1f}%",
-            "chg_1m": f"{chg_1m:+.1f}%",
-            "chg_2m": f"{chg_2m:+.1f}%",
-            "chg_3m": f"{chg_3m:+.1f}%"
+            "breadth": b_now_str,
+            "chg_1w": chg_1w_str,
+            "chg_1m": chg_1m_str,
+            "chg_2m": chg_2m_str,
+            "chg_3m": chg_3m_str
         })
     return results
 
-with st.spinner("⚡ 正在計算市場寬度與多週期均線指標..."):
+with st.spinner("⚡ 正在自動辨識成分股並重算市場寬度指標..."):
     items = fetch_dashboard_data(selected_etfs)
 
-# 生成單一表格數據行（結合雙向凍結）
 table_rows = ""
 for it in items:
     trend_color = "#10b981" if "UP" in it["trend"] else ("#ef4444" if "DOWN" in it["trend"] else "#94a3b8")
     trend_bg = "rgba(16, 185, 129, 0.15)" if "UP" in it["trend"] else ("rgba(239, 68, 68, 0.15)" if "DOWN" in it["trend"] else "rgba(148, 163, 184, 0.15)")
     rs_color = "#10b981" if not it["rs"].startswith("-") else "#f43f5e"
 
-    w1_color = "#10b981" if not it["chg_1w"].startswith("-") else "#f43f5e"
-    m1_color = "#10b981" if not it["chg_1m"].startswith("-") else "#f43f5e"
-    m2_color = "#10b981" if not it["chg_2m"].startswith("-") else "#f43f5e"
-    m3_color = "#10b981" if not it["chg_3m"].startswith("-") else "#f43f5e"
+    def get_color(val):
+        if val == "-": return "#94a3b8"
+        return "#10b981" if not val.startswith("-") else "#f43f5e"
 
     table_rows += f"""
     <tr>
@@ -168,10 +213,10 @@ for it in items:
         <td style="color:#cbd5e1; white-space:nowrap;">{it['price_ret']}</td>
         <td style="color:#a5b4fc; white-space:nowrap;">{it['ew_ret']}</td>
         <td style="color:#38bdf8; font-weight:700; white-space:nowrap;">{it['breadth']}</td>
-        <td style="color:{w1_color}; font-weight:600;">{it['chg_1w']}</td>
-        <td style="color:{m1_color}; font-weight:600;">{it['chg_1m']}</td>
-        <td style="color:{m2_color}; font-weight:600;">{it['chg_2m']}</td>
-        <td style="color:{m3_color}; font-weight:600;">{it['chg_3m']}</td>
+        <td style="color:{get_color(it['chg_1w'])}; font-weight:600;">{it['chg_1w']}</td>
+        <td style="color:{get_color(it['chg_1m'])}; font-weight:600;">{it['chg_1m']}</td>
+        <td style="color:{get_color(it['chg_2m'])}; font-weight:600;">{it['chg_2m']}</td>
+        <td style="color:{get_color(it['chg_3m'])}; font-weight:600;">{it['chg_3m']}</td>
     </tr>
     """
 
@@ -189,7 +234,6 @@ full_html = f"""
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }}
     
-    /* 雙向滾動容器：固定高度產生垂直捲軸，超出寬度產生水平捲軸 */
     .table-container {{
         width: 100%;
         max-height: 750px;
@@ -208,7 +252,6 @@ full_html = f"""
         text-align: left;
     }}
 
-    /* 1. 上下滑動時表頭永遠凍結在最頂 */
     th {{
         position: sticky;
         top: 0;
@@ -237,7 +280,6 @@ full_html = f"""
         background-color: #141e34 !important;
     }}
 
-    /* 2. 左右滾動時，左側 Ticker 與 Sector 永遠凍結固定在左邊 */
     .sticky-col-1 {{
         position: sticky;
         left: 0;
@@ -250,11 +292,10 @@ full_html = f"""
         left: 90px;
         z-index: 5;
         background-color: #0e1526;
-        min-width: 140px;
+        min-width: 150px;
         border-right: 2px solid #1e2942;
     }}
 
-    /* 頂角交叉處層級最高，避免滾動覆蓋 */
     th.sticky-col-1 {{ z-index: 20; background-color: #162038; }}
     th.sticky-col-2 {{ z-index: 20; background-color: #162038; border-right: 2px solid #223154; }}
 
@@ -267,7 +308,6 @@ full_html = f"""
         font-size: 13px;
     }}
 
-    /* 分組次表頭美化 */
     .sub-head {{
         background-color: #111a2e;
         color: #38bdf8;
@@ -309,5 +349,4 @@ full_html = f"""
 </html>
 """
 
-# 以獨立全功能容器渲染
 components.html(full_html, height=800, scrolling=False)
