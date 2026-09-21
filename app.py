@@ -3,65 +3,201 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# 頁面標題與佈局
-st.set_page_config(page_title="財報日更新表", layout="wide", initial_sidebar_state="collapsed")
+# 頁面基礎設置
+st.set_page_config(page_title="ETF Overview", layout="wide", initial_sidebar_state="collapsed")
 
-# 注入科技深色樣式
+# 注入完全對齊設計圖的深藍科技感 CSS
 st.markdown("""
 <style>
-    .stApp { background-color: #0b0f19; color: #e2e8f0; }
-    div[data-testid="stMetric"] {
-        background-color: #161f30;
-        border: 1px solid #2d3748;
-        padding: 12px;
+    /* 全域背景設定 */
+    .stApp {
+        background-color: #060913 !important;
+        color: #f1f5f9 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    /* 隱藏 Streamlit 原生多餘空白與頁眉 */
+    header[data-testid="stHeader"] { background: transparent !important; }
+    .block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; }
+
+    /* 頂部標題區塊 */
+    .brand-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 15px;
+    }
+    .brand-icon {
+        width: 38px;
+        height: 38px;
+        background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
         border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
     }
-    .metric-card {
-        background-color: #161f30;
-        border: 1px solid #232d42;
-        border-radius: 8px;
-        padding: 14px;
-        margin-bottom: 12px;
+    .brand-title {
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        color: #ffffff;
+        margin: 0;
     }
-    .badge-up { color: #10b981; font-weight: bold; }
-    .badge-down { color: #f43f5e; font-weight: bold; }
-    .badge-neutral { color: #94a3b8; }
+
+    /* 頂部分類膠囊列 (對應截圖中的紫藍按鈕) */
+    .cat-pills {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .cat-pill {
+        background-color: #12192c;
+        color: #94a3b8;
+        border: 1px solid #1e2942;
+        padding: 6px 18px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .cat-pill.active {
+        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+        color: white;
+        border: none;
+        box-shadow: 0 2px 10px rgba(79, 70, 229, 0.4);
+    }
+
+    /* 區塊外框卡片 */
+    .dash-card {
+        background-color: #0e1526;
+        border: 1px solid #1a233a;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    .card-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* 金融終端數據表 */
+    .fin-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+    .fin-table th {
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        padding: 10px 12px;
+        border-bottom: 1px solid #1a253c;
+    }
+    .fin-table td {
+        padding: 12px;
+        font-size: 13px;
+        color: #cbd5e1;
+        border-bottom: 1px solid #121a2d;
+    }
+    .fin-table tr:hover {
+        background-color: #141e34;
+    }
+
+    /* 樣式標籤 */
+    .ticker-symbol {
+        font-weight: 800;
+        color: #ffffff;
+        font-size: 14px;
+    }
+    .badge-trend-up {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 12px;
+    }
+    .badge-trend-down {
+        background-color: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 12px;
+    }
+    .badge-trend-mid {
+        background-color: rgba(148, 163, 184, 0.15);
+        color: #94a3b8;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 12px;
+    }
+    .val-up { color: #10b981; font-weight: 600; }
+    .val-down { color: #f43f5e; font-weight: 600; }
+    .breadth-highlight { color: #38bdf8; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
-# 頂部導航
-col_t1, col_t2 = st.columns([4, 1])
-with col_t1:
-    st.markdown("## 財報日更新表")
-    st.caption("US Sector/Industry ETF Trend, Relative Strength & Internal Breadth Monitor")
-with col_t2:
+# 頂部抬頭與按鈕列
+top_left, top_right = st.columns([5, 1])
+with top_left:
+    st.markdown("""
+    <div class="brand-header">
+        <div class="brand-icon">📈</div>
+        <div>
+            <h1 class="brand-title">ETF Overview</h1>
+        </div>
+    </div>
+    <div class="cat-pills">
+        <div class="cat-pill active">Sector ETF</div>
+        <div class="cat-pill">Industry ETF</div>
+        <div class="cat-pill">Asset Class</div>
+        <div class="cat-pill">Market Overview</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with top_right:
     if st.button("🔄 Refresh Data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-# 側邊欄：自由增減 ETF
-st.sidebar.subheader("監控標的管理")
-default_etfs = "XLK, XLC, XLY, XLI, XLF, XLV, XLB, XLU, XLP, XLRE, XLE, SMH"
-user_input = st.sidebar.text_area("ETF 代號清單 (以逗號隔開)", default_etfs)
-selected_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
+# ----------------- 【直接在介面加減 ETF】 -----------------
+with st.expander("➕ / ➖ 點此管理監控 ETF 清單 (點擊展開或關閉)", expanded=False):
+    default_tickers = "XLK, XLC, XLY, XLI, XLF, XLV, XLB, XLU, XLP, XLRE, XLE, SMH"
+    user_input = st.text_input("輸入你想監控的 ETF 代號（逗號隔開）", value=default_tickers)
+    selected_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
 
-# 預設各板塊權重成分股（用於計算內部寬度）
-BREADTH_PROXIES = {
-    "XLK": ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "ADBE", "CRM", "AMD"],
-    "XLC": ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA", "TTWO"],
-    "XLY": ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "SBUX", "BKNG"],
-    "XLI": ["GE", "CAT", "UNP", "HON", "RTX", "BA", "DE", "LMT"],
-    "XLF": ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS"],
-    "XLV": ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "PFE"],
-    "XLB": ["LIN", "APD", "SHW", "FCX", "ECL", "NEM", "DOW"],
-    "XLU": ["NEE", "SO", "DUK", "CEG", "SRE", "AEP", "D"],
-    "XLP": ["PG", "COST", "WMT", "KO", "PEP", "PM", "MDLZ"],
-    "XLRE": ["PLD", "AMT", "EQIX", "WELL", "PSA", "O", "CCI"],
-    "XLE": ["XOM", "CVX", "COP", "EOG", "SLB", "MPC", "PSX"],
-    "SMH": ["NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "MU"]
+# 代表性成分股字典 (計算內部市場寬度)
+SECTOR_MAP = {
+    "XLK": ("資訊科技 (Technology)", ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD"]),
+    "XLC": ("通訊服務 (Communication)", ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA"]),
+    "XLY": ("非必需消費 (Consumer Discretionary)", ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "BKNG"]),
+    "XLI": ("工業製造 (Industrials)", ["GE", "CAT", "UNP", "HON", "RTX", "BA", "DE", "LMT"]),
+    "XLF": ("金融服務 (Financials)", ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS"]),
+    "XLV": ("醫療保健 (Healthcare)", ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "PFE"]),
+    "XLB": ("原物料 (Materials)", ["LIN", "APD", "SHW", "FCX", "ECL", "NEM", "DOW"]),
+    "XLU": ("公用事業 (Utilities)", ["NEE", "SO", "DUK", "CEG", "SRE", "AEP"]),
+    "XLP": ("必需消費 (Consumer Staples)", ["PG", "COST", "WMT", "KO", "PEP", "PM"]),
+    "XLRE": ("房地產 (Real Estate)", ["PLD", "AMT", "EQIX", "WELL", "PSA", "O"]),
+    "XLE": ("能源板塊 (Energy)", ["XOM", "CVX", "COP", "EOG", "SLB", "MPC"]),
+    "SMH": ("半導體 (Semiconductors)", ["NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "MU"])
 }
 
-def calc_breadth_at_index(c_df, constituents, idx):
+def calc_breadth_at_idx(c_df, constituents, idx):
     cnt_20, cnt_50, cnt_200 = 0, 0, 0
     total = len(constituents)
     for c in constituents:
@@ -76,7 +212,7 @@ def calc_breadth_at_index(c_df, constituents, idx):
     return (cnt_20/total)*100, (cnt_50/total)*100, (cnt_200/total)*100
 
 @st.cache_data(ttl=1800)
-def fetch_all_metrics(tickers):
+def fetch_dashboard_data(tickers):
     results = []
     spy = yf.download("SPY", period="1y", interval="1d", progress=False)['Close']
     spy_ret_3m = (spy.iloc[-1] / spy.iloc[-63] - 1).values[0] if len(spy) >= 63 else 0
@@ -100,76 +236,115 @@ def fetch_all_metrics(tickers):
         p_2m = (cur_p / series.iloc[-42] - 1) * 100 if len(series) >= 42 else 0
         p_3m = (cur_p / series.iloc[-63] - 1) * 100 if len(series) >= 63 else 0
         
-        rs_status = "領先 ▲" if (p_3m / 100) > spy_ret_3m else "落後 ▼"
-        trend = "多頭 ▲" if (cur_p > e50 and e20 > e50) else ("空頭 ▼" if (cur_p < e50 and e20 < e50) else "整理 ◼")
+        rs_score = ((p_3m / 100) - spy_ret_3m) * 100
+        trend_status = "UP ▲" if (cur_p > e50 and e20 > e50) else ("DOWN ▼" if (cur_p < e50 and e20 < e50) else "RNG ◼")
         
-        # 內部寬度與多週期變化
-        constituents = BREADTH_PROXIES.get(ticker, [])
+        sector_name, constituents = SECTOR_MAP.get(ticker, (ticker, []))
         b_now = (0, 0, 0)
         chg_1w = chg_1m = chg_2m = chg_3m = "+0.0%"
-        ew_ret = "0.0% / 0.0% / 0.0%"
+        ew_ret = "- / - / -"
         
         if constituents:
             c_df = yf.download(constituents, period="2y", interval="1d", progress=False)['Close']
-            b_now = calc_breadth_at_index(c_df, constituents, 0)
-            b_1w = calc_breadth_at_index(c_df, constituents, -5)
-            b_1m = calc_breadth_at_index(c_df, constituents, -21)
-            b_2m = calc_breadth_at_index(c_df, constituents, -42)
-            b_3m = calc_breadth_at_index(c_df, constituents, -63)
+            b_now = calc_breadth_at_idx(c_df, constituents, 0)
+            b_1w = calc_breadth_at_idx(c_df, constituents, -5)
+            b_1m = calc_breadth_at_idx(c_df, constituents, -21)
+            b_2m = calc_breadth_at_idx(c_df, constituents, -42)
+            b_3m = calc_breadth_at_idx(c_df, constituents, -63)
             
-            # 以 50 EMA 寬度變化為代表
             chg_1w = f"{(b_now[1] - b_1w[1]):+.1f}%"
             chg_1m = f"{(b_now[1] - b_1m[1]):+.1f}%"
             chg_2m = f"{(b_now[1] - b_2m[1]):+.1f}%"
             chg_3m = f"{(b_now[1] - b_3m[1]):+.1f}%"
 
-            # 等權報酬
             ew1 = np.mean([(c_df[c].iloc[-1]/c_df[c].iloc[-21]-1)*100 for c in constituents if c in c_df])
             ew2 = np.mean([(c_df[c].iloc[-1]/c_df[c].iloc[-42]-1)*100 for c in constituents if c in c_df])
             ew3 = np.mean([(c_df[c].iloc[-1]/c_df[c].iloc[-63]-1)*100 for c in constituents if c in c_df])
             ew_ret = f"{ew1:+.1f}% / {ew2:+.1f}% / {ew3:+.1f}%"
 
         results.append({
-            "Ticker": ticker,
-            "Price": round(cur_p, 2),
-            "Trend": trend,
-            "RS (vs SPY)": rs_status,
-            "% vs 10/20/30E": f"{(cur_p/e10-1)*100:+.1f}% / {(cur_p/e20-1)*100:+.1f}% / {(cur_p/e30-1)*100:+.1f}%",
-            "% vs 50/200E": f"{(cur_p/e50-1)*100:+.1f}% / {(cur_p/e200-1)*100:+.1f}%",
-            "% vs 30W MA": f"{(cur_p/ma150-1)*100:+.1f}%",
-            "價格 (1M/2M/3M)": f"{p_1m:+.1f}% / {p_2m:+.1f}% / {p_3m:+.1f}%",
-            "等權 (1M/2M/3M)": ew_ret,
-            "% > 20/50/200 EMA": f"{b_now[0]:.0f}% / {b_now[1]:.0f}% / {b_now[2]:.0f}%",
-            "寬度變動 (1W/1M/2M/3M)": f"{chg_1w} | {chg_1m} | {chg_2m} | {chg_3m}",
-            "raw_b200": b_now[2]
+            "ticker": ticker,
+            "sector": sector_name,
+            "price": f"${cur_p:.2f}",
+            "trend": trend_status,
+            "rs": f"{rs_score:+.1f}",
+            "ema10_20_30": f"{(cur_p/e10-1)*100:+.1f}%, {(cur_p/e20-1)*100:+.1f}%, {(cur_p/e30-1)*100:+.1f}%",
+            "ema50_200": f"{(cur_p/e50-1)*100:+.1f}%, {(cur_p/e200-1)*100:+.1f}%",
+            "ma30w": f"{(cur_p/ma150-1)*100:+.1f}%",
+            "price_ret": f"{p_1m:+.1f}% / {p_2m:+.1f}% / {p_3m:+.1f}%",
+            "ew_ret": ew_ret,
+            "breadth": f"{b_now[0]:.0f}%, {b_now[1]:.0f}%, {b_now[2]:.0f}%",
+            "breadth_chg": f"1W: {chg_1w} | 1M: {chg_1m} | 2M: {chg_2m} | 3M: {chg_3m}"
         })
-    return pd.DataFrame(results)
+    return results
 
-with st.spinner("正在加載與計算內部寬度數據..."):
-    df_data = fetch_all_metrics(selected_etfs)
+with st.spinner("⚡ 正在計算市場寬度與多週期均線指標..."):
+    items = fetch_dashboard_data(selected_etfs)
 
-if not df_data.empty:
-    tab1, tab2 = st.tabs(["💻 電腦完整表格", "📱 手機重點卡片"])
+# ==================== CARD 1: ETF SECTOR/INDUSTRY MONITOR ====================
+card1_html = """
+<div class="dash-card">
+    <div class="card-title">📊 ETF SECTOR / INDUSTRY MONITOR</div>
+    <div style="overflow-x:auto;">
+        <table class="fin-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Sector / Industry</th>
+                    <th>Price</th>
+                    <th>Trend</th>
+                    <th>RS Score</th>
+                    <th>% vs EMA (10, 20, 30)</th>
+                    <th>% vs EMA (50, 200)</th>
+                    <th>% vs 30W MA</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+for it in items:
+    trend_badge = "badge-trend-up" if "UP" in it["trend"] else ("badge-trend-down" if "DOWN" in it["trend"] else "badge-trend-mid")
+    rs_color = "val-up" if not it["rs"].startswith("-") else "val-down"
+    card1_html += f"""
+        <tr>
+            <td><span class="ticker-symbol">{it['ticker']}</span></td>
+            <td style="color:#94a3b8;">{it['sector']}</td>
+            <td style="font-weight:700; color:#fff;">{it['price']}</td>
+            <td><span class="{trend_badge}">{it['trend']}</span></td>
+            <td class="{rs_color}">{it['rs']}</td>
+            <td>{it['ema10_20_30']}</td>
+            <td>{it['ema50_200']}</td>
+            <td>{it['ma30w']}</td>
+        </tr>
+    """
+card1_html += "</tbody></table></div></div>"
+st.markdown(card1_html, unsafe_allow_html=True)
 
-    with tab1:
-        st.dataframe(df_data.drop(columns=["raw_b200"]), use_container_width=True, hide_index=True)
-
-    with tab2:
-        for _, row in df_data.iterrows():
-            badge_color = "badge-up" if "多頭" in row["Trend"] else ("badge-down" if "空頭" in row["Trend"] else "badge-neutral")
-            st.markdown(f"""
-            <div class="metric-card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0;">{row['Ticker']} <span style="font-size:14px; color:#94a3b8;">${row['Price']}</span></h3>
-                    <span class="{badge_color}">{row['Trend']} ({row['RS (vs SPY)']})</span>
-                </div>
-                <div style="margin-top:8px; font-size:12px; line-height:1.7;">
-                    <b>vs 10/20/30 EMA:</b> {row['% vs 10/20/30E']}<br>
-                    <b>vs 50/200 EMA:</b> {row['% vs 50/200E']} | <b>30W MA:</b> {row['% vs 30W MA']}<br>
-                    <b>價格回報 (1M/2M/3M):</b> {row['價格 (1M/2M/3M)']}<br>
-                    <b>等權回報 (1M/2M/3M):</b> {row['等權 (1M/2M/3M)']}<br>
-                    <b>成分股寬度 (> 20/50/200 EMA):</b> <span style="color:#38bdf8;">{row['% > 20/50/200 EMA']}</span><br>
-                    <b>寬度變動 (1W/1M/2M/3M):</b> {row['寬度變動 (1W/1M/2M/3M)']}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+# ==================== CARD 2: ETF INTERNAL BREADTH MONITOR ====================
+card2_html = """
+<div class="dash-card">
+    <div class="card-title">🔬 ETF INTERNAL BREADTH & PARTICIPATION MONITOR</div>
+    <div style="overflow-x:auto;">
+        <table class="fin-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price Chg % (1M/2M/3M)</th>
+                    <th>EW Comp. Chg % (1M/2M/3M)</th>
+                    <th>% Above EMA (20/50/200)</th>
+                    <th>Breadth Change (% > 50 EMA vs Past)</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+for it in items:
+    card2_html += f"""
+        <tr>
+            <td><span class="ticker-symbol">{it['ticker']}</span></td>
+            <td>{it['price_ret']}</td>
+            <td style="color:#a5b4fc;">{it['ew_ret']}</td>
+            <td><span class="breadth-highlight">{it['breadth']}</span></td>
+            <td style="color:#94a3b8; font-size:12px;">{it['breadth_chg']}</td>
+        </tr>
+    """
+card2_html += "</tbody></table></div></div>"
+st.markdown(card2_html, unsafe_allow_html=True)
