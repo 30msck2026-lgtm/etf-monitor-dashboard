@@ -3,8 +3,6 @@ import streamlit.components.v1 as components
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import requests
-from bs4 import BeautifulSoup
 
 # 頁面基礎設置
 st.set_page_config(page_title="ETF Overview", layout="wide", initial_sidebar_state="collapsed")
@@ -41,70 +39,55 @@ with top_right:
 # ----------------- 【自由加減 ETF 清單】 -----------------
 with st.expander("➕ / ➖ 點此管理監控 ETF 清單 (點擊展開或關閉)", expanded=False):
     default_tickers = "XLK, XLC, XLY, XLI, XLF, XLV, XLB, XLU, XLP, XLRE, XLE, SMH, IGV, SOXX, SCHD, VYM"
-    user_input = st.text_input("輸入你想監控的 ETF 代號（逗號隔開，支援任意美股 ETF）", value=default_tickers)
+    user_input = st.text_input("輸入你想監控的 ETF 代號（逗號隔開）", value=default_tickers)
     selected_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
 
-# 預設基礎板塊名稱字典（作為友好顯示）
-SECTOR_NAMES = {
-    "XLK": "資訊科技 (Tech)", "XLC": "通訊服務 (Comm)", "XLY": "非必需消費 (Discr)",
-    "XLI": "工業製造 (Ind)", "XLF": "金融服務 (Fin)", "XLV": "醫療保健 (Health)",
-    "XLB": "原物料 (Materials)", "XLU": "公用事業 (Utils)", "XLP": "必需消費 (Staples)",
-    "XLRE": "房地產 (Real Est)", "XLE": "能源板塊 (Energy)", "SMH": "半導體 (Semis)",
-    "SOXX": "半導體 (Semis)", "IGV": "軟體科技 (Software)", "SCHD": "美股高息 (Dividend)",
-    "VYM": "高股息率 (High Div)", "QQQ": "納指科技 (Nasdaq)", "IWM": "小型股 (Russell)"
+# 完整涵蓋常見板塊與行業成分股字典
+ETF_HOLDINGS_DB = {
+    "XLK": ("資訊科技 (Tech)", ["AAPL", "MSFT", "NVDA", "AVGO", "CSCO", "ACN", "ORCL", "CRM", "AMD", "QCOM"]),
+    "XLC": ("通訊服務 (Comm)", ["META", "GOOGL", "NFLX", "TMUS", "CMCSA", "DIS", "EA", "TTWO"]),
+    "XLY": ("非必需消費 (Discr)", ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "BKNG", "SBUX", "TJX"]),
+    "XLI": ("工業製造 (Ind)", ["GE", "CAT", "UNP", "HON", "RTX", "BA", "DE", "LMT", "ETN", "UPS"]),
+    "XLF": ("金融板塊 (Fin)", ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "AXP"]),
+    "XLV": ("醫療保健 (Health)", ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "PFE", "AMGN"]),
+    "XLB": ("基礎原物料 (Materials)", ["LIN", "APD", "SHW", "FCX", "ECL", "NEM", "DOW", "CTVA"]),
+    "XLU": ("公用事業 (Utils)", ["NEE", "SO", "DUK", "CEG", "SRE", "AEP", "D", "PEG"]),
+    "XLP": ("必需消費 (Staples)", ["PG", "COST", "WMT", "KO", "PEP", "PM", "MDLZ", "MO", "CL"]),
+    "XLRE": ("房地產 (Real Est)", ["PLD", "AMT", "EQIX", "WELL", "PSA", "O", "CCI", "SPG"]),
+    "XLE": ("能源板塊 (Energy)", ["XOM", "CVX", "COP", "EOG", "SLB", "MPC", "PSX", "VLO"]),
+    "SMH": ("半導體 (VanEck Semis)", ["NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "MU", "LRCX", "AMAT"]),
+    "SOXX": ("費城半導體 (iShares Semis)", ["NVDA", "AVGO", "AMD", "QCOM", "TXN", "INTC", "ADI", "MU", "LRCX", "KLAC"]),
+    "IGV": ("軟體科技 (Software)", ["MSFT", "CRM", "ORCL", "ADBE", "NOW", "INTU", "PLTR", "PANW", "SNOW"]),
+    "XBI": ("生物科技 (Biotech)", ["VRTX", "REGN", "BIIB", "ALNY", "MRNA", "ILMN", "INCY"]),
+    "ITA": ("國防航空 (Aerospace)", ["RTX", "LMT", "BA", "GE", "GD", "NOC", "TDG"]),
+    "XHB": ("房屋建築 (Homebuilders)", ["DHI", "LEN", "NVR", "PHM", "TOL", "HD", "LOW"]),
+    "SCHD": ("美股高息 (US Dividend)", ["AVGO", "CSCO", "HD", "TXN", "PFE", "AMGN", "PEP", "CVX", "ABBV", "KO"]),
+    "VYM": ("高股息率 (High Div)", ["JPM", "XOM", "JNJ", "PG", "HD", "CVX", "MRK", "ABBV", "BAC", "WFC"]),
+    "QQQ": ("納指100 (Nasdaq 100)", ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST"]),
+    "IWM": ("羅素2000 (Small Cap)", ["FTAI", "VRT", "SAIA", "ENSG", "FN", "SFM", "MSTR", "MEDP"])
 }
-
-# 自動聯網抓取任意 ETF 的前 10 大成分股
-@st.cache_data(ttl=86400) # 成分股名單每日快取一次
-def get_etf_holdings_auto(ticker):
-    try:
-        # 方法 A: 嘗試使用 yfinance 原生持股介面
-        etf_obj = yf.Ticker(ticker)
-        try:
-            holdings_df = etf_obj.funds_data.top_holdings
-            if holdings_df is not None and not holdings_df.empty:
-                syms = [s.replace(".", "-") for s in holdings_df.index.tolist() if isinstance(s, str)]
-                if len(syms) >= 5:
-                    return syms[:10]
-        except Exception:
-            pass
-
-        # 方法 B: 備用爬蟲抓取 Yahoo Finance Holdings 頁面
-        url = f"https://finance.yahoo.com/quote/{ticker}/holdings"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        res = requests.get(url, headers=headers, timeout=6)
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, 'html.parser')
-            links = soup.find_all('a', href=True)
-            tickers_found = []
-            for a in links:
-                href = a['href']
-                if "/quote/" in href and not href.endswith(f"/quote/{ticker}"):
-                    sym = href.split("/quote/")[1].split("?")[0].replace(".", "-").strip().upper()
-                    if sym and sym.isalpha() and len(sym) <= 5 and sym != ticker:
-                        if sym not in tickers_found:
-                            tickers_found.append(sym)
-                if len(tickers_found) >= 10:
-                    break
-            if len(tickers_found) >= 5:
-                return tickers_found[:10]
-    except Exception:
-        pass
-    return []
 
 def calc_breadth_at_idx(c_df, constituents, idx):
     cnt_20, cnt_50, cnt_200 = 0, 0, 0
     valid_count = 0
     for c in constituents:
-        if c in c_df:
+        if c in c_df.columns:
             s = c_df[c].dropna()
-            if len(s) > abs(idx) + 150:
+            # 確保有足夠歷史天數計算 EMA
+            if len(s) > abs(idx) + 120:
                 valid_count += 1
                 sub_s = s.iloc[:len(s)+idx] if idx < 0 else s
                 last_p = sub_s.iloc[-1]
-                if last_p > sub_s.ewm(span=20, adjust=False).mean().iloc[-1]: cnt_20 += 1
-                if last_p > sub_s.ewm(span=50, adjust=False).mean().iloc[-1]: cnt_50 += 1
-                if last_p > sub_s.ewm(span=200, adjust=False).mean().iloc[-1]: cnt_200 += 1
+                
+                # 計算該股票的 EMA
+                ema20 = sub_s.ewm(span=20, adjust=False).mean().iloc[-1]
+                ema50 = sub_s.ewm(span=50, adjust=False).mean().iloc[-1]
+                span_200 = 200 if len(sub_s) >= 200 else len(sub_s)
+                ema200 = sub_s.ewm(span=span_200, adjust=False).mean().iloc[-1]
+                
+                if last_p > ema20: cnt_20 += 1
+                if last_p > ema50: cnt_50 += 1
+                if last_p > ema200: cnt_200 += 1
     if valid_count == 0:
         return None
     return (cnt_20/valid_count)*100, (cnt_50/valid_count)*100, (cnt_200/valid_count)*100
@@ -112,83 +95,117 @@ def calc_breadth_at_idx(c_df, constituents, idx):
 @st.cache_data(ttl=1800)
 def fetch_dashboard_data(tickers):
     results = []
-    spy = yf.download("SPY", period="1y", interval="1d", progress=False)['Close']
-    spy_ret_3m = (spy.iloc[-1] / spy.iloc[-63] - 1).values[0] if len(spy) >= 63 else 0
+    
+    # 取得 SPY 3 個月報酬作相對強度基準
+    spy_ret_3m = 0
+    try:
+        spy_raw = yf.download("SPY", period="1y", interval="1d", progress=False)
+        spy_close = spy_raw['Close']
+        if isinstance(spy_close, pd.DataFrame):
+            spy_close = spy_close.iloc[:, 0]
+        if len(spy_close) >= 63:
+            spy_ret_3m = (spy_close.iloc[-1] / spy_close.iloc[-63] - 1)
+    except Exception:
+        pass
 
     for ticker in tickers:
-        df = yf.download(ticker, period="1y", interval="1d", progress=False)['Close']
-        if df.empty or len(df) < 200:
+        try:
+            raw = yf.download(ticker, period="1y", interval="1d", progress=False)
+            if raw.empty or 'Close' not in raw:
+                continue
+            
+            series = raw['Close']
+            if isinstance(series, pd.DataFrame):
+                series = series.iloc[:, 0]
+            series = series.dropna()
+            
+            if len(series) < 120:
+                continue
+            
+            cur_p = series.iloc[-1]
+            e10 = series.ewm(span=10, adjust=False).mean().iloc[-1]
+            e20 = series.ewm(span=20, adjust=False).mean().iloc[-1]
+            e30 = series.ewm(span=30, adjust=False).mean().iloc[-1]
+            e50 = series.ewm(span=50, adjust=False).mean().iloc[-1]
+            span_200 = 200 if len(series) >= 200 else len(series)
+            e200 = series.ewm(span=span_200, adjust=False).mean().iloc[-1]
+            ma150 = series.rolling(window=150, min_periods=100).mean().iloc[-1]
+            
+            p_1m = (cur_p / series.iloc[-21] - 1) * 100 if len(series) >= 21 else 0
+            p_2m = (cur_p / series.iloc[-42] - 1) * 100 if len(series) >= 42 else 0
+            p_3m = (cur_p / series.iloc[-63] - 1) * 100 if len(series) >= 63 else 0
+            
+            rs_score = ((p_3m / 100) - spy_ret_3m) * 100
+            trend_status = "UP ▲" if (cur_p > e50 and e20 > e50) else ("DOWN ▼" if (cur_p < e50 and e20 < e50) else "RNG ◼")
+            
+            sector_display, constituents = ETF_HOLDINGS_DB.get(ticker, (f"自訂標的 ({ticker})", []))
+            
+            b_now_str = "N/A"
+            chg_1w_str = chg_1m_str = chg_2m_str = chg_3m_str = "-"
+            ew_ret = "- / - / -"
+            
+            if constituents:
+                c_raw = yf.download(constituents, period="2y", interval="1d", progress=False)
+                if not c_raw.empty and 'Close' in c_raw:
+                    c_close = c_raw['Close']
+                    
+                    # 確保 c_close 是平整的 DataFrame
+                    if isinstance(c_close, pd.Series):
+                        c_df = pd.DataFrame({constituents[0]: c_close})
+                    else:
+                        c_df = c_close.copy()
+                    
+                    b_now = calc_breadth_at_idx(c_df, constituents, 0)
+                    if b_now is not None:
+                        b_now_str = f"{b_now[0]:.0f}%, {b_now[1]:.0f}%, {b_now[2]:.0f}%"
+                        
+                        b_1w = calc_breadth_at_idx(c_df, constituents, -5)
+                        b_1m = calc_breadth_at_idx(c_df, constituents, -21)
+                        b_2m = calc_breadth_at_idx(c_df, constituents, -42)
+                        b_3m = calc_breadth_at_idx(c_df, constituents, -63)
+                        
+                        if b_1w: chg_1w_str = f"{(b_now[1] - b_1w[1]):+.1f}%"
+                        if b_1m: chg_1m_str = f"{(b_now[1] - b_1m[1]):+.1f}%"
+                        if b_2m: chg_2m_str = f"{(b_now[1] - b_2m[1]):+.1f}%"
+                        if b_3m: chg_3m_str = f"{(b_now[1] - b_3m[1]):+.1f}%"
+
+                    # 計算等權回報 (EW COMP)
+                    ew1, ew2, ew3 = [], [], []
+                    for c in constituents:
+                        if c in c_df.columns:
+                            sc = c_df[c].dropna()
+                            if len(sc) >= 21: ew1.append((sc.iloc[-1] / sc.iloc[-21] - 1) * 100)
+                            if len(sc) >= 42: ew2.append((sc.iloc[-1] / sc.iloc[-42] - 1) * 100)
+                            if len(sc) >= 63: ew3.append((sc.iloc[-1] / sc.iloc[-63] - 1) * 100)
+                    
+                    if ew1:
+                        ret1 = np.mean(ew1) if ew1 else 0
+                        ret2 = np.mean(ew2) if ew2 else 0
+                        ret3 = np.mean(ew3) if ew3 else 0
+                        ew_ret = f"{ret1:+.1f}% / {ret2:+.1f}% / {ret3:+.1f}%"
+
+            results.append({
+                "ticker": ticker,
+                "sector": sector_display,
+                "price": f"${cur_p:.2f}",
+                "trend": trend_status,
+                "rs": f"{rs_score:+.1f}",
+                "ema_all": f"{(cur_p/e10-1)*100:+.1f}%, {(cur_p/e20-1)*100:+.1f}%, {(cur_p/e30-1)*100:+.1f}%, {(cur_p/e50-1)*100:+.1f}%, {(cur_p/e200-1)*100:+.1f}%",
+                "ma30w": f"{(cur_p/ma150-1)*100:+.1f}%",
+                "price_ret": f"{p_1m:+.1f}% / {p_2m:+.1f}% / {p_3m:+.1f}%",
+                "ew_ret": ew_ret,
+                "breadth": b_now_str,
+                "chg_1w": chg_1w_str,
+                "chg_1m": chg_1m_str,
+                "chg_2m": chg_2m_str,
+                "chg_3m": chg_3m_str
+            })
+        except Exception:
             continue
-        
-        series = df.iloc[:, 0] if isinstance(df, pd.DataFrame) else df
-        cur_p = series.iloc[-1]
-        
-        e10 = series.ewm(span=10, adjust=False).mean().iloc[-1]
-        e20 = series.ewm(span=20, adjust=False).mean().iloc[-1]
-        e30 = series.ewm(span=30, adjust=False).mean().iloc[-1]
-        e50 = series.ewm(span=50, adjust=False).mean().iloc[-1]
-        e200 = series.ewm(span=200, adjust=False).mean().iloc[-1]
-        ma150 = series.rolling(window=150).mean().iloc[-1]
-        
-        p_1m = (cur_p / series.iloc[-21] - 1) * 100 if len(series) >= 21 else 0
-        p_2m = (cur_p / series.iloc[-42] - 1) * 100 if len(series) >= 42 else 0
-        p_3m = (cur_p / series.iloc[-63] - 1) * 100 if len(series) >= 63 else 0
-        
-        rs_score = ((p_3m / 100) - spy_ret_3m) * 100
-        trend_status = "UP ▲" if (cur_p > e50 and e20 > e50) else ("DOWN ▼" if (cur_p < e50 and e20 < e50) else "RNG ◼")
-        
-        # 標籤顯示
-        sector_display = SECTOR_NAMES.get(ticker, f"ETF ({ticker})")
-        
-        # 自動聯網尋找成分股
-        constituents = get_etf_holdings_auto(ticker)
-        
-        b_now_str = "N/A"
-        chg_1w_str = chg_1m_str = chg_2m_str = chg_3m_str = "-"
-        ew_ret = "- / - / -"
-        
-        if constituents:
-            c_df = yf.download(constituents, period="2y", interval="1d", progress=False)['Close']
-            b_now = calc_breadth_at_idx(c_df, constituents, 0)
             
-            if b_now is not None:
-                b_now_str = f"{b_now[0]:.0f}%, {b_now[1]:.0f}%, {b_now[2]:.0f}%"
-                b_1w = calc_breadth_at_idx(c_df, constituents, -5)
-                b_1m = calc_breadth_at_idx(c_df, constituents, -21)
-                b_2m = calc_breadth_at_idx(c_df, constituents, -42)
-                b_3m = calc_breadth_at_idx(c_df, constituents, -63)
-                
-                if b_1w: chg_1w_str = f"{(b_now[1] - b_1w[1]):+.1f}%"
-                if b_1m: chg_1m_str = f"{(b_now[1] - b_1m[1]):+.1f}%"
-                if b_2m: chg_2m_str = f"{(b_now[1] - b_2m[1]):+.1f}%"
-                if b_3m: chg_3m_str = f"{(b_now[1] - b_3m[1]):+.1f}%"
-
-            ew1 = [((c_df[c].iloc[-1]/c_df[c].iloc[-21]-1)*100) for c in constituents if c in c_df and len(c_df[c].dropna())>=21]
-            ew2 = [((c_df[c].iloc[-1]/c_df[c].iloc[-42]-1)*100) for c in constituents if c in c_df and len(c_df[c].dropna())>=42]
-            ew3 = [((c_df[c].iloc[-1]/c_df[c].iloc[-63]-1)*100) for c in constituents if c in c_df and len(c_df[c].dropna())>=63]
-            
-            if ew1:
-                ew_ret = f"{np.mean(ew1):+.1f}% / {np.mean(ew2):+.1f}% / {np.mean(ew3):+.1f}%"
-
-        results.append({
-            "ticker": ticker,
-            "sector": sector_display,
-            "price": f"${cur_p:.2f}",
-            "trend": trend_status,
-            "rs": f"{rs_score:+.1f}",
-            "ema_all": f"{(cur_p/e10-1)*100:+.1f}%, {(cur_p/e20-1)*100:+.1f}%, {(cur_p/e30-1)*100:+.1f}%, {(cur_p/e50-1)*100:+.1f}%, {(cur_p/e200-1)*100:+.1f}%",
-            "ma30w": f"{(cur_p/ma150-1)*100:+.1f}%",
-            "price_ret": f"{p_1m:+.1f}% / {p_2m:+.1f}% / {p_3m:+.1f}%",
-            "ew_ret": ew_ret,
-            "breadth": b_now_str,
-            "chg_1w": chg_1w_str,
-            "chg_1m": chg_1m_str,
-            "chg_2m": chg_2m_str,
-            "chg_3m": chg_3m_str
-        })
     return results
 
-with st.spinner("⚡ 正在自動辨識成分股並重算市場寬度指標..."):
+with st.spinner("⚡ 正在計算市場寬度與多週期均線指標..."):
     items = fetch_dashboard_data(selected_etfs)
 
 table_rows = ""
