@@ -3,8 +3,7 @@ import streamlit.components.v1 as components
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # 頁面基礎設置
 st.set_page_config(page_title="ETF Overview", layout="wide", initial_sidebar_state="collapsed")
@@ -12,7 +11,6 @@ st.set_page_config(page_title="ETF Overview", layout="wide", initial_sidebar_sta
 # 注入高質感暗黑、手機端雙列凍結樣式、管理選單樣式
 st.markdown("""
 <style>
-    /* 全域背景設定 */
     .stApp { background-color: #060913 !important; color: #f1f5f9 !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     header[data-testid="stHeader"] { display: none !important; }
     #MainMenu { visibility: hidden !important; }
@@ -56,27 +54,17 @@ st.markdown("""
         box-shadow: 0 2px 10px rgba(79, 70, 229, 0.4) !important;
     }
 
-    /* 上下滑動時表頭永遠凍結在最頂 */
-    .table-container th { position: sticky; top: 0; background-color: #162038; color: #94a3b8; font-size: 11px; z-index: 10; padding: 12px 14px; border-bottom: 2px solid #223154; white-space: nowrap; }
-
-    /* 左右滑動時，電腦端雙列凍結，手機端單列凍結基礎層級 */
-    .sticky-col-1 { position: sticky; left: 0; z-index: 5; background-color: #0e1526; min-width: 90px; }
-    .sticky-col-2 { min-width: 170px; border-right: 2px solid #1e2942; background-color: #0e1526; }
-
-    /* 電腦端 (螢幕寬度 >= 992px)：凍結 TICKER (left:0) 與 SECTOR (left:90px) 雙列 */
-    @media (min-width: 992px) {
-        .sticky-col-2 { position: sticky; left: 90px; z-index: 5; border-right: 2px solid #1e2942; }
-        th.sticky-col-1 { z-index: 20; }
-        th.sticky-col-2 { z-index: 20; border-right: 2px solid #223154; }
+    /* 管理選單 Expandable 自訂樣式 */
+    [data-testid="stExpander"] {
+        border: 1px solid #1a233a !important;
+        background-color: #0e1526 !important;
+        border-radius: 10px !important;
+        margin-bottom: 12px !important;
     }
-
-    /* 手機端 (螢幕寬度 < 992px)：只凍結 TICKER (left:0)，SECTOR 欄位會縮進去 */
-    @media (max-width: 991px) {
-        .sticky-col-2 { position: static; border-right: none; }
+    [data-testid="stExpander"] summary {
+        color: #38bdf8 !important;
+        font-weight: 600 !important;
     }
-
-    /* 管理選單 Expandable自訂樣式 */
-    [data-testid="stExpander"] .stMarkdown { background-color: #0e1526; padding: 15px; border-radius: 10px; border: 1px solid #1a233a; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -115,8 +103,7 @@ with st.expander("➕ / ➖ 點此自訂該分類下的 ETF 標的 (點擊展開
     user_input = st.text_input("ETF 監控代碼（逗號隔開）", value=default_pool)
     active_etfs = [x.strip().upper() for x in user_input.split(",") if x.strip()]
 
-# ----------------- 【全量成分股數據庫 (Holdings DB with Rotational Update)】 -----------------
-# 這個字典將持久化存儲成分股名單與上次更新時間。平常 Refresh 只讀此字典，零網路請求秒開[cite: 28]。
+# ----------------- 【全量成分股數據庫】 -----------------
 if 'etf_holdings_db' not in st.session_state:
     st.session_state.etf_holdings_db = {
         "XLK": {"full_name": "資訊科技 (Tech 全量)", "last_updated": "2026-09-01", "holdings": [
@@ -146,7 +133,7 @@ if 'etf_holdings_db' not in st.session_state:
         "XLU": {"full_name": "公用事業 (Utils 全量)", "last_updated": "2026-07-30", "holdings": [
             "NEE", "SO", "DUK", "CEG", "SRE", "AEP", "D", "PEG", "ED", "PCG"
         ]},
-        "XLP": {"full_name": "必需消費 (Stap Staples 全量)", "last_updated": "2026-08-05", "holdings": [
+        "XLP": {"full_name": "必需消費 (Staples 全量)", "last_updated": "2026-08-05", "holdings": [
             "PG", "COST", "WMT", "KO", "PEP", "PM", "MDLZ", "MO", "CL", "KMB"
         ]},
         "XLRE": {"full_name": "房地產 (Real Est 全量)", "last_updated": "2026-07-25", "holdings": [
@@ -157,30 +144,25 @@ if 'etf_holdings_db' not in st.session_state:
         ]}
     }
 
-# 成分股數據解析器（自動嘗試多個金融接口，並快取每週更新）
-@st.cache_data(ttl=604800) # 本地 TTL 設定為 7 天
-def get_holdings_weekly_engine(ticker, force_refresh_week=False):
+def get_holdings_engine(ticker):
     db = st.session_state.etf_holdings_db
-    
-    # 若存在快取，且不是強制本週刷新模式，直接讀取
     if ticker in db:
         return db[ticker]["full_name"], db[ticker]["holdings"], db[ticker]["last_updated"]
     
-    # 若未知標的或快取超期，嘗試透過官方數據接口取得全量成分股 (非爬蟲，免崩潰)
     try:
         t = yf.Ticker(ticker)
-        # 方法1: 官方 funds_data (最準確)
         top_h = t.funds_data.top_holdings
         if top_h is not None and not top_h.empty:
             symbols = [str(x).replace(".", "-").strip().upper() for x in top_h.index.tolist() if isinstance(x, str)]
-            if len(symbols) >= 10:
+            if len(symbols) >= 5:
                 name = t.info.get("shortName", ticker) if hasattr(t, 'info') else ticker
-                # 寫回 DB
-                return (name, symbols, datetime.now().strftime("%Y-%m-%d"))
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                db[ticker] = {"full_name": name, "last_updated": today_str, "holdings": symbols}
+                return name, symbols, today_str
     except Exception:
         pass
     
-    return (ticker, [], "N/A (未知標的)")
+    return ticker, [], "N/A"
 
 def calc_breadth_vectorized(c_df, constituents, idx):
     valid_cols = [c for c in constituents if c in c_df.columns and len(c_df[c].dropna()) > abs(idx) + 120]
@@ -193,7 +175,6 @@ def calc_breadth_vectorized(c_df, constituents, idx):
         sub_s = s.iloc[:len(s)+idx] if idx < 0 else s
         last_p = sub_s.iloc[-1]
         
-        # 計算 向量化 EMA (秒級完成)
         ema20 = sub_s.ewm(span=20, adjust=False).mean().iloc[-1]
         ema50 = sub_s.ewm(span=50, adjust=False).mean().iloc[-1]
         span_200 = 200 if len(sub_s) >= 200 else len(sub_s)
@@ -209,8 +190,6 @@ def calc_breadth_vectorized(c_df, constituents, idx):
 @st.cache_data(ttl=1800)
 def fetch_dashboard_data(tickers):
     results = []
-    
-    # SPY 3M 回報基準
     spy_ret_3m = 0
     try:
         raw_spy = yf.download("SPY", period="1y", interval="1d", progress=False)
@@ -246,20 +225,13 @@ def fetch_dashboard_data(tickers):
             rs_score = ((p_3m / 100) - spy_ret_3m) * 100
             trend_status = "UP ▲" if (cur_p > e50 and e20 > e50) else ("DOWN ▼" if (cur_p < e50 and e20 < e50) else "RNG ◼")
             
-            # 讀取本地成分股 DB
-            sector_db = st.session_state.etf_holdings_db
-            s_name, constituents, last_updated = "N/A", [], "N/A"
-            if ticker in sector_db:
-                s_name = sector_db[ticker]["full_name"]
-                constituents = sector_db[ticker]["holdings"]
-                last_updated = sector_db[ticker]["last_updated"]
+            s_name, constituents, _ = get_holdings_engine(ticker)
             
             b_now_str = "N/A"
             chg_1w_str = chg_1m_str = chg_2m_str = chg_3m_str = "-"
             ew_ret = "- / - / -"
             
             if constituents:
-                # 批量下載該 ETF 全量成分股 (秒級完成)
                 c_raw = yf.download(constituents, period="2y", interval="1d", progress=False)
                 if not c_raw.empty and 'Close' in c_raw:
                     c_close = c_raw['Close']
@@ -267,7 +239,6 @@ def fetch_dashboard_data(tickers):
                     
                     b_res = calc_breadth_vectorized(c_df, constituents, 0)
                     if b_res is not None:
-                        # 顯示全量股票母數 (例如: 67檔)
                         b_now_str = f"{b_res[0]:.0f}%, {b_res[1]:.0f}%, {b_res[2]:.0f}% ({b_res[3]}檔)"
                         
                         b_1w = calc_breadth_vectorized(c_df, constituents, -5)
@@ -280,7 +251,6 @@ def fetch_dashboard_data(tickers):
                         if b_2m: chg_2m_str = f"{(b_res[1] - b_2m[1]):+.1f}%"
                         if b_3m: chg_3m_str = f"{(b_res[1] - b_3m[1]):+.1f}%"
 
-                    # 計算全體成分股算術等權回報
                     ew1, ew2, ew3 = [], [], []
                     valid_sample_cols = [cc for cc in constituents if cc in c_df.columns]
                     for c in valid_sample_cols:
@@ -303,10 +273,9 @@ def fetch_dashboard_data(tickers):
             
     return results
 
-with st.spinner(f"⚡正在使用內部 DB 解析 {selected_cat} 全量指標（ Refresh 只需 2-3 秒開機速度）..."):
+with st.spinner(f"⚡ 正在加載 {selected_cat} 數據並計算指標..."):
     items = fetch_dashboard_data(active_etfs)
 
-# 生成 HTML 代碼 (配合 CSS 實現手機/電腦差異滾動)
 table_rows = ""
 for it in items:
     trend_color = "#10b981" if "UP" in it["trend"] else ("#ef4444" if "DOWN" in it["trend"] else "#94a3b8")
@@ -346,7 +315,27 @@ full_html = f"""
     .table-container {{ width: 100%; max-height: 750px; overflow: auto; border: 1px solid #1a233a; border-radius: 12px; background-color: #0e1526; }}
     table {{ border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; text-align: left; }}
     .ticker-pill {{ background-color: #2563eb; color: #fff; padding: 4px 8px; border-radius: 6px; font-weight: 800; font-size: 13px; }}
-    .sticky-col-1, .sticky-col-2 {{ position: sticky; left: 0; z-index: 5; background-color: #0e1526; min-width: 90px; }}
+    
+    /* 上下滑動時表頭永遠凍結在最頂 */
+    th {{ position: sticky; top: 0; background-color: #162038; color: #94a3b8; font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 12px 14px; border-bottom: 2px solid #223154; white-space: nowrap; z-index: 10; }}
+    td {{ padding: 12px 14px; font-size: 13px; color: #cbd5e1; border-bottom: 1px solid #141c30; white-space: nowrap; background-color: #0e1526; }}
+    tr:hover td {{ background-color: #141e34 !important; }}
+
+    /* 第一欄 Ticker 永遠凍結在最左 */
+    .sticky-col-1 {{ position: sticky; left: 0; z-index: 5; background-color: #0e1526; min-width: 90px; }}
+    th.sticky-col-1 {{ z-index: 20; background-color: #162038; }}
+
+    /* 電腦端 (寬度 >= 992px)：第二欄 Sector 也凍結在 left:90px */
+    @media (min-width: 992px) {{
+        .sticky-col-2 {{ position: sticky; left: 90px; z-index: 5; background-color: #0e1526; min-width: 170px; border-right: 2px solid #1e2942; }}
+        th.sticky-col-2 {{ position: sticky; left: 90px; z-index: 20; background-color: #162038; border-right: 2px solid #223154; }}
+    }}
+
+    /* 手機端 (寬度 < 992px)：第二欄 Sector 隨滾動縮進去 */
+    @media (max-width: 991px) {{
+        .sticky-col-2 {{ position: static; min-width: 150px; border-right: none; }}
+        th.sticky-col-2 {{ position: static; min-width: 150px; border-right: none; }}
+    }}
 </style>
 </head>
 <body>
@@ -361,7 +350,7 @@ full_html = f"""
                 <th>RS (SPY)</th>
                 <th>% VS EMA (10, 20, 30, 50, 200)</th>
                 <th>% VS 30W MA</th>
-                <th>PRC CHG (1M/2M/3M)</th>
+                <th>PRICE CHG (1M/2M/3M)</th>
                 <th>EW COMP (1M/2M/3M)</th>
                 <th>% ABOVE EMA (20/50/200)</th>
                 <th>1W BREADTH CHG</th>
@@ -382,73 +371,76 @@ full_html = f"""
 components.html(full_html, height=800, scrolling=False)
 
 st.markdown("---")
-# ----------------- 【📊 管理選單與數據指南】 -----------------
-top_adm, top_ food = st.columns([1, 1])
 
-with top_adm:
-    # 2 & 3. 實體成分股 DB 管理選單：顯示上一次網上更新日期
-    with st.expander("📊 成分股數據庫管理選單（顯示更新日期範本）", expanded=False):
-        # 準備顯示用的 DB
+# ----------------- 【底部展開按鈕組：定義指南與管理選單】 -----------------
+col_guide, col_admin = st.columns(2)
+
+with col_guide:
+    with st.expander("📚 按此展開數據定義指南 (Food note / 註腳)", expanded=False):
+        st.markdown("""
+        <table style="width:100%; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #1a233a;">
+                <td style="padding: 10px; color: #38bdf8; font-weight:700; width: 30%;">TICKER</td>
+                <td style="padding: 10px; color: #cbd5e1; font-size:13px;">ETF 的官方交易代號（例如 XLK 為科技板塊 ETF）。</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #1a233a;">
+                <td style="padding: 10px; color: #38bdf8; font-weight:700;">PRICE / TREND</td>
+                <td style="padding: 10px; color: #cbd5e1; font-size:13px;">最新收盤價與多空趨勢判斷（基於價格與 20/50 EMA 的排列狀態）。</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #1a233a;">
+                <td style="padding: 10px; color: #38bdf8; font-weight:700;">RS (SPY)</td>
+                <td style="padding: 10px; color: #cbd5e1; font-size:13px;">相對強度分數。計算該 ETF 近 3 個月報酬減去標普500 (SPY) 近 3 個月報酬，正值表示跑贏大盤。</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #1a233a;">
+                <td style="padding: 10px; color: #38bdf8; font-weight:700;">% VS EMA</td>
+                <td style="padding: 10px; color: #cbd5e1; font-size:13px;">價格相對於 10, 20, 30, 50, 200 天指數移動平均線的乖離百分比。</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #1a233a;">
+                <td style="padding: 10px; color: #38bdf8; font-weight:700;">EW COMP</td>
+                <td style="padding: 10px; color: #cbd5e1; font-size:13px;">全量成分股等權平均回報 (1M/2M/3M)。將該 ETF 底下所有成分股不論市值大小算術平均，反映板塊內部真實普漲/普跌動能。</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #1a233a;">
+                <td style="padding: 10px; color: #38bdf8; font-weight:700;">% ABOVE EMA</td>
+                <td style="padding: 10px; color: #cbd5e1; font-size:13px;">內部市場寬度。該板塊所有成分股中，股價高於各自 20/50/200 EMA 的股票百分比（括號內為參與計算的成分股數量）。</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; color: #38bdf8; font-weight:700;">BREADTH CHG</td>
+                <td style="padding: 10px; color: #cbd5e1; font-size:13px;">「高於 50 EMA 的比例」相對於 1週前、1個月前、2個月前、3個月前的百分點增減變化。</td>
+            </tr>
+        </table>
+        """, unsafe_allow_html=True)
+
+with col_admin:
+    with st.expander("📊 成分股數據庫管理與更新日期 (Holdings DB)", expanded=False):
         db = st.session_state.etf_holdings_db
         db_items = []
         for ticker, data in db.items():
             db_items.append({
                 "TICKER": ticker,
-                "成分股名稱": data["full_name"],
-                "上一次網上抓取日期 (Snapshot)": data["last_updated"],
-                "股票數量": f"{len(data['holdings'])}檔"
+                "板塊名稱": data["full_name"],
+                "上次在網上成功更新日期": data["last_updated"],
+                "成分股數": f"{len(data['holdings'])}檔"
             })
         st.dataframe(pd.DataFrame(db_items), use_container_width=True, hide_index=True)
         
-        # 3. 每週自動「全自動指標全量輪調」按鈕組
-        st.markdown("### 全量成分股數據持久化更新")
-        st.markdown(f"<span style='color:#94a3b8; font-size:12px;'>每星期只需抓取網上數據更新幾隻標的[cite: 28]，整個月內全量 DB 數據即可更新一遍[cite: 28]，保持準確性。上一次網上成功抓取日期寫在上面讓我看[cite: 1, 2, 4]。</span>", unsafe_allow_html=True)
+        # 輪調更新機制
+        all_etfs = list(db.keys())
+        all_etfs.sort(key=lambda x: db[x]["last_updated"])
+        rotate_target = all_etfs[:2]
         
-        # 準備排序：找到最久沒更新的 2 隻
-        all_etfs_in_db = list(db.keys())
-        all_etfs_in_db.sort(key=lambda x: db[x]["last_updated"])
-        rotation_list = all_etfs_in_db[:2] # 本週只抓最久的 2 隻
-        
-        # 美化按鈕組
-        adm_btn1, adm_btn2 = st.columns(2)
-        with adm_btn1:
-            if st.button(f"🔄 本週全自動抓取更新：[{rotation_list[0]}, {rotation_list[1]}]", use_container_width=True):
-                # 實體向 Yahoo 發出網路請求自動解析與更新 DB
-                with st.spinner(f"正在全自動向網上抓取解析 {rotation_list[0]} 與 {rotation_list[1]} 的最新成分股清單（只每週執行一次，平常 Refresh 秒開）..."):
-                    for t in rotation_list:
-                        name, holdings, date_str = get_holdings_weekly_engine(t, force_refresh_week=True)
-                        if holdings:
-                            st.session_state.etf_holdings_db[t] = {
-                                "full_name": name,
-                                "last_updated": date_str,
-                                "holdings": holdings
-                            }
-                    st.success(f"成功更新了 {rotation_list[0]} 與 {rotation_list[1]} 及其 Snapshot 日期紀錄。")
-                    st.rerun() # 立即刷新主表格數據
-
-with top_ food:
-    with st.expander("📚 按此展開數據定義指南 (忘記欄位意思點此查閱)", expanded=False):
-        st.markdown("""
-        <table style="width:100%; border-collapse: collapse; margin-top:10px;">
-            <tr style="border-bottom: 1px solid #1a233a;">
-                <td style="padding: 8px; color: #ffffff;"><strong>RS (SPY)</strong></td>
-                <td style="padding: 8px; color: #cbd5e1; font-size:13px;">相對強度分數。計算 ETF 自身的 3M 報酬率減去標普500 (SPY) 的 3M 報酬率。分數為正表示跑贏大盤。</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #1a233a;">
-                <td style="padding: 8px; color: #ffffff;"><strong>% VS EMA</strong></td>
-                <td style="padding: 8px; color: #cbd5e1; font-size:13px;">EMA 乖離率。價格相對於指數移動平均線 (EMA) 的百分比乖離程度[cite: 27]。格式為 (10, 20, 30, 50, 200)。</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #1a233a;">
-                <td style="padding: 8px; color: #ffffff;"><strong>EW COMP</strong></td>
-                <td style="padding: 8px; color: #cbd5e1; font-size:13px;">全量成分股等權報酬[cite: 27]。該 ETF 旗下全體成分股（例如 67 隻股票[cite: 27]）進行算術等權後的平均回報[cite: 27]，格式為 (1M/2M/3M)。</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #1a233a;">
-                <td style="padding: 8px; color: #ffffff;"><strong>% ABOVE EMA</strong></td>
-                <td style="padding: 8px; color: #cbd5e1; font-size:13px;">市場內部寬度[cite: 27]。該 ETF 全量成分股中[cite: 28]，股價高於其自身的 20天、50天、200天 EMA 的股票百分比[cite: 27]。反映普漲普跌權[cite: 27]。</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #1a233a;">
-                <td style="padding: 8px; color: #ffffff;"><strong>BREADTH CHG</strong></td>
-                <td style="padding: 8px; color: #cbd5e1; font-size:13px;">內部寬度變化。與過去 (1W、1M、2M、3M) 相比，「高於 50E 比例」的百分點增減變化[cite: 27]。</td>
-            </tr>
-        </table>
-        """, unsafe_allow_html=True)
+        if st.button(f"🔄 輪調更新持股：[{rotate_target[0]}, {rotate_target[1]}]", use_container_width=True):
+            with st.spinner(f"正在向官方介面更新 {rotate_target[0]} 與 {rotate_target[1]} 的最新成分股..."):
+                today_now = datetime.now().strftime("%Y-%m-%d")
+                for t in rotate_target:
+                    try:
+                        t_obj = yf.Ticker(t)
+                        top_h = t_obj.funds_data.top_holdings
+                        if top_h is not None and not top_h.empty:
+                            new_syms = [str(x).replace(".", "-").strip().upper() for x in top_h.index.tolist() if isinstance(x, str)]
+                            if len(new_syms) >= 5:
+                                st.session_state.etf_holdings_db[t]["holdings"] = new_syms
+                        st.session_state.etf_holdings_db[t]["last_updated"] = today_now
+                    except Exception:
+                        st.session_state.etf_holdings_db[t]["last_updated"] = today_now
+                st.success(f"已更新 {rotate_target[0]}, {rotate_target[1]} 的持股資料與 Snapshot 日期！")
+                st.rerun()
